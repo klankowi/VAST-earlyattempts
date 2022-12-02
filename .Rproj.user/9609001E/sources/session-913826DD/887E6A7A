@@ -3,7 +3,7 @@
     "path": "~/GitHub/VAST-earlyattempts/vast_take2.R",
     "project_path": "vast_take2.R",
     "type": "r_source",
-    "hash": "1556964074",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1669994800796.0,
@@ -12,8 +12,8 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "84,56",
-        "scrollLine": "54"
+        "cursorPosition": "0,0",
+        "scrollLine": "0"
     },
     "folds": "",
     "lastKnownWriteTime": 1669994842,
