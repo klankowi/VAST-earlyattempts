@@ -1,0 +1,247 @@
+---
+title: "**Terrain Ruggedness Index**"
+geometry: "left=0.75in,right=0.75in,top=1in,bottom=1in"
+output:
+  bookdown::pdf_document2:
+    toc: no
+    number_sections: false
+urlcolor: blue
+documentclass: article
+header-includes:
+    - \usepackage{setspace}\onehalfspacing
+    - \usepackage{float}
+    - \usepackage{fancyhdr}
+    - \pagestyle{fancy}
+fontsize: 12pt
+sansfont: Calibri
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+```
+
+```{r quant}
+rm(list=ls())
+
+library(sf)
+library(raster)
+library(tidyverse)
+library(marmap)
+library(spatialEco)
+
+#### Bathymetry ####
+# Pull NOAA bathymetry data
+Bathy <- getNOAA.bathy(lon1 = -80, lon2 = -60,
+                       lat1 = 30, lat2 = 50, resolution = 1)
+
+# Now do a bit of data wrangling so we can plot it:
+# Convert data to matrix
+Bathy_Final <- as.matrix(Bathy)
+class(Bathy_Final) <- "matrix"
+
+# Reshape for plotting
+BathyData <- Bathy_Final %>%
+  as.data.frame() %>% 
+  rownames_to_column(var = "lon") %>%
+  gather(lat, value, -1) %>%
+  mutate_all(funs(as.numeric))
+
+
+#### Terrain Ruggedness Index ####
+# Reshape for TRI
+Bathy_Raster <- marmap::as.raster(Bathy)
+
+# Set depth breaks and colors
+dbreaks <- c(seq(0, 20, 2),
+             seq(20, 40, 4),
+             seq(40, 70, 5),
+             seq(70, 100, 10),
+             seq(100, 200, 20),
+             seq(200, 400, 50),
+             seq(400, 1000, 100),
+             seq(1000, 2000, 200),
+             seq(2000, 4000, 500),
+             seq(4000, 6000, 1000))
+dbreaks <- unique(dbreaks) * -1
+dcol <- colorRampPalette(c("#DEF5E5", "#40498E"))
+dcol <- dcol(length(dbreaks))
+
+# Test plot
+# ggplot() +
+#   geom_contour_filled(data = BathyData, aes(x = lon, y = lat, z = value),
+#                       breaks = dbreaks) + 
+#   xlab("Longitude") + 
+#   ylab("Latitude") +
+#   scale_fill_manual(values =  dcol) + 
+#   coord_sf(xlim = c(-77, -66),  ylim = c(36, 46)) + 
+#   theme_void() + 
+#   theme(panel.background=element_rect(fill="gray"), legend.position = "none")
+
+# Create dataset without land
+Bathy_NoLand <- Bathy
+Bathy_NoLand[Bathy_NoLand > 0] <- NA
+
+# Convert Bathy to Raster
+Bathy_Raster <- marmap::as.raster(Bathy_NoLand)
+
+# Find TRI
+Bathy_TRI <- spatialEco::tri(Bathy_Raster, exact=T)
+
+# Convert to dataframe
+TRI_df <- as.data.frame(Bathy_TRI, xy=TRUE)
+
+# Set TRI breaks and colors
+tbreaks <- dbreaks * -1
+tcol <- colorRampPalette(c("#DEF5E5", "#40498E"))
+tcol <- tcol(length(tbreaks))
+
+# Test plot
+# ggplot() +
+#   geom_contour_filled(data = TRI_df, aes(x = x, y = y, z = layer),
+#                       breaks = tbreaks) + 
+#   xlab("Longitude") + 
+#   ylab("Latitude") +
+#   scale_fill_manual(values =  dcol) + 
+#   coord_sf(xlim = c(-77, -66),  ylim = c(36, 46)) + 
+#   theme_void() + 
+#   theme(panel.background=element_rect(fill="gray"), legend.position = "none")
+
+#### Survey data ####
+# Load survey points
+survey_data <- read.csv(paste0("C:/Users/klankowicz/Box/Katie Lankowicz/",
+                               "Groundfish_Survey_Data_Mods/Collated_Data/",
+                               "Survey_Data.csv"))
+
+# Subset to NEFSC BTS WGOM
+survey_data <- subset(survey_data, SURVEY=="NEFSC BTS")
+
+# Conver to sf object
+surveys_sf <- st_as_sf(survey_data, coords=c("LON", "LAT"),
+                       na.fail=T)
+
+# Set coordinat ref system (unprojected WGS84)
+st_crs(surveys_sf) <- "EPSG: 4326"
+
+#### Survey strata ####
+
+# Load survey strata
+strata <- st_read(paste0("C:/Users/klankowicz/Downloads/",
+                            "NOAA-EDAB ECSA master data-strata_shapefiles/",
+                            "BTS_Strata.shp"),
+                     quiet = TRUE)
+
+# Transform
+strata_sf <- st_transform(strata,
+                          crs = st_crs(surveys_sf))
+
+#### Sediment ####
+# Load sediment data
+seds <- st_read(paste0("C:/Users/klankowicz/Downloads/",
+                       "Fishing_Effects_Sediment/",
+                       "Fishing_Effects_Sediment/FishingEffectsSediment.shp"),
+                quiet = TRUE)
+# Convert to XX.XX %
+seds$Mud <- round(seds$Mud*100,2)
+seds$Sand <- round(seds$Sand*100,2)
+seds$Gravel <- round(seds$GrPe*100,2)
+seds$GrPe <- NULL
+seds$Cobble <- round(seds$Cobble*100,2)
+seds$Boulder <- round(seds$Boulder*100,2)
+seds$StDeep <- round(seds$StDeep*100,2)
+
+# Create aggregated "trawlable" and "non-trawlable"
+seds$Trawlable <- NA
+seds$NonTrawlable <- NA
+
+for(i in 1:nrow(seds)){
+  seds$Trawlable[i] <- seds$Mud[i] + seds$Sand[i] + seds$Gravel[i[]]
+  seds$NonTrawlable[i] <- seds$Cobble[i] +
+    seds$Boulder[i] + seds$StDeep[i]
+}
+
+# Convert to data frame to assign dominant substrate
+seds.test <- as.data.frame(seds)
+seds.test <- dplyr::select(seds.test,
+                           Mud, Sand, Gravel, Cobble,
+                           Boulder, StDeep)
+
+# Assign dominant substrate
+seds.test$Dom <- NA
+for(i in 1:nrow(seds.test)){
+  vect_values <- as.numeric(seds.test[i,1:6])
+  truetab <- vect_values == 0
+  truetabl <- table(truetab)
+  if(truetabl["TRUE"] <= 5){
+    seds.test$Dom[i] <- colnames(
+      sort(seds.test[i,1:6], decreasing=T)[1]
+    ) 
+  }
+  if(truetabl["TRUE"] == 6){
+    seds.test$Dom[i] <- "No data"
+  }
+}
+
+# Assign secondary substrate
+seds.test$Sec <- NA
+for(i in 1:nrow(seds.test)){
+  vect_values <- as.numeric(seds.test[i,1:6])
+  truetab <- vect_values == 0
+  truetabl <- table(truetab)
+  if(truetabl["TRUE"] == 5){
+    seds.test$Sec[i] <- "None"
+  } else
+    if(truetabl["TRUE"] < 5){
+      seds.test$Sec[i] <- colnames(
+        sort(seds.test[i,1:6], decreasing=T)[2]
+      ) 
+    }
+  if(truetabl["TRUE"] == 6){
+    seds.test$Sec[i] <- "No data"
+  }
+}
+
+# Add to sf object
+seds$Dom <- seds.test$Dom
+seds$Sec <- seds.test$Sec
+
+#### Mid-clean ####
+# Remove intermediates
+#rm(Bathy_Final, Bathy_Raster, Bathy_TRI, seds.test, strata, survey_data,
+#   Bathy, Bathy_NoLand, i, truetab, truetabl, vect_values)
+# Transform projections as needed, master CRS is unprojected WGS84 (EPSG: 4326)
+bathy_sf <- st_as_sf(BathyData, coords=c("lon", "lat"),
+                       na.fail=T)
+st_crs(bathy_sf) <- "EPSG: 4326"
+bathy_sf <- st_transform(bathy_sf,
+                         crs=st_crs(surveys_sf))
+#rm(BathyData)
+
+tri_sf <- st_as_sf(TRI_df, coords=c("x", "y"),
+                   na.fail=T)
+st_crs(tri_sf) <- "EPSG: 4326"
+tri_sf <- st_transform(tri_sf,
+                       crs=st_crs(surveys_sf))
+#rm(TRI_df)
+
+seds_sf <- st_transform(seds,
+                        crs=st_crs(surveys_sf))
+#rm(seds)
+
+```
+
+\newpage
+
+```{r gplot, fig.width=7, fig.height=9}
+# Test plot
+ggplot() +
+    geom_contour_filled(data = TRI_df, aes(x = x, y = y, z = layer),
+                      breaks = tbreaks) + 
+  geom_sf(data=strata_sf, fill=NA, col="darkgray", lwd=0.5) +
+  xlab("Longitude") + 
+  ylab("Latitude") +
+  scale_fill_manual(values =  tcol) + 
+  coord_sf(xlim = c(-77, -66),  ylim = c(36, 46)) + 
+  theme_void() + 
+  theme(panel.background=element_rect(fill="gray"), 
+        legend.position = "none")
+```
+

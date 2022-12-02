@@ -10,10 +10,11 @@
 library(ncdf4)
 library(raster)
 library(tidyverse)
+library(here)
 
 # Load functions
-source("nc_to_raster_func.R")
-source("raster_to_sstdf_func.R")
+source(here("utilities/nc_to_raster_func.R"))
+source(here("utilities/raster_to_sstdf_func.R"))
 
 # Set variable name to sea surface temperature
 varname <- 'sst'

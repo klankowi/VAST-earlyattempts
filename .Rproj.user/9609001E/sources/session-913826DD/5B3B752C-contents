@@ -1,0 +1,59 @@
+---
+title: "**Covariate Relationships**"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+geometry: "left=0.75in,right=0.75in,top=1in,bottom=1in"
+output:
+  bookdown::pdf_document2:
+    toc: no
+    number_sections: false
+urlcolor: blue
+documentclass: article
+header-includes:
+    - \usepackage{setspace}\onehalfspacing
+    - \usepackage{float}
+    - \usepackage{fancyhdr}
+    - \pagestyle{fancy}
+fontsize: 12pt
+sansfont: Calibri
+---
+
+```{r setup, include=FALSE}
+# Options for all code chunks
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning= FALSE)
+
+# Set plots to sit in text exactly where they are called 
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+
+# Load libraries
+library(sf)
+library(tidyverse)
+library(rgdal)
+library(here)
+
+# Set ggplot theme
+theme_set(theme_bw())
+```
+
+\onehalfspacing
+
+# Introduction
+
+|        Previous explorations have tested the correlations between the 11 groundfish survey-generated index of abundance time series and the location of surveys relative to coarse-scale habitat gradients. With new, finer-scale information, we can now better test correlations between cod catch from fishery-independent surveys and underlying habitat rugosity, sediment type, and surface water temperature. Testing for correlations between catch and these variables will help us determine if they should be treated as density (habitat) or catchability covariates in later VAST models. They shape of the relationships will also be used in VAST models for density covariates.
+\smallskip
+|        Previous explorations have tested the correlations between the 11 groundfish survey-generated index of abundance time series and the location of surveys relative to coarse-scale habitat gradients. With new, finer-scale information, we can now better test correlations between cod catch from fishery-independent surveys and underlying habitat rugosity, sediment type, and surface water temperature. Testing for correlations between catch and these variables will help us determine if they should be treated as density (habitat) or catchability covariates in later VAST models. They shape of the relationships will also be used in VAST models for density covariates.
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

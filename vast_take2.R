@@ -7,10 +7,10 @@ library(rgdal)
 library(here)
 
 ## Add spatial grid
-user_region <- readRDS('user_region_wgom.rds')
+user_region <- readRDS(here('data/user_region_wgom.rds'))
 
 ## Add strata
-strata <- readOGR("strata_stox_orig.shp")
+strata <- readOGR(here("data/strata_stox_orig.shp"))
 strata.2 <- st_as_sf(strata)
 strata.tab <- table(strata.2$STRATA_1, strata.2$STOCK)
 
@@ -48,7 +48,7 @@ ggplot(data = ecodata::coast) +
   theme_bw()
 
 ## Add sampling data
-surveys <- read.csv("Survey_Data.csv")
+surveys <- read.csv(here("data/Survey_Data.csv"))
 wgom <- subset(surveys, STOCK=='WGOM')
 wgom <- subset(wgom, SURVEY=='NEFSC BTS')
 wgom <- subset(wgom, SEASON=='FALL')
