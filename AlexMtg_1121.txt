@@ -1,0 +1,20 @@
+Area swept
+- Jim's github if there aren't area swept estimates
+- Does it assume similar methods?
+- Use sensitivity run with fbts as dummy
+a_i = rep(1, nrow(dat)),
+
+Area
+- single model that fits all stock areas
+
+Season
+- Use Andrew's seasonality model, can make it easier later
+
+Define seasons:
+- Use spawning
+- Doug Zemeckis, MASS DMF, Armstrong
+
+Optimal habitat vs. trawlable
+- Lump sand and mud
+- Lump others
+- Ask questions about differences in habitat betweent he two areas

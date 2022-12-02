@@ -1,0 +1,26 @@
+{
+    "id": "D78E955E",
+    "path": "~/GitHub/VAST-earlyattempts/pull_OISST_downloaded_NCDF.R",
+    "project_path": "pull_OISST_downloaded_NCDF.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1669910706026.0,
+    "source_on_save": false,
+    "relative_order": 6,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "29,2",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1669929787,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1669930116580,
+    "read_only": false,
+    "read_only_alternatives": []
+}

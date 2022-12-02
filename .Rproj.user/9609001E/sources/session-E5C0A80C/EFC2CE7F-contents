@@ -1,0 +1,66 @@
+rm(list=ls())
+
+library(tidyverse)
+library(here)
+library(DT)
+library(FishStatsUtils)
+library(sf)
+library(raster)
+library(terra)
+library(nngeo)
+library(data.table)
+
+#list of SST dataframes
+SSTdfs <- list.files(here("data-raw/gridded/sst_data/"), pattern = "*.rds")
+
+dietstn_OISST <- tibble()
+
+stations <- read.csv(paste0(here("Survey_Data.csv")))
+stations$DATE <- as.POSIXct(stations$DATE, 
+                            format = "%m/%d/%Y")
+stations$month <- substr(stations$DATE, start=6, stop=7)
+stations$day <- substr(stations$DATE, start=9, stop=10)
+stations <- subset(stations, is.na(stations$LAT)==FALSE)
+stations <- subset(stations, is.na(stations$LON)==FALSE)
+stations$yrmody <- paste0(stations$YEAR, stations$month, stations$day)
+stations <- st_as_sf(stations, coords=c("LON", "LAT"),
+                     na.fail=T)
+
+for(df in SSTdfs){
+  sstdf <- readRDS(paste0(here("data-raw/gridded/sst_data/", df)))
+  
+  # keep only bluefish dates in SST year
+  stationsyr <- stations %>%
+    filter(YEAR == unique(sstdf$year))
+  
+  # keep only sst days in bluefish dataset
+  sstdf_survdays <- sstdf %>%
+    dplyr::mutate(yrmody = as.numeric(paste0(year, month, day)) )%>%
+    dplyr::filter(yrmody %in% unique(stationsyr$yrmody)) %>%
+    dplyr::mutate(year = as.numeric(year),
+                  month = as.numeric(month),
+                  day = as.numeric(day),
+                  declon = Lon,
+                  declat = Lat) %>%
+    dplyr::select(-Lon, -Lat) %>%
+    sf::st_as_sf(coords=c("declon","declat"), crs=4326, remove=FALSE)  
+  
+  # now join by nearest neighbor and date
+  
+  #https://stackoverflow.com/questions/71959927/spatial-join-two-data-frames-by-nearest-feature-and-date-in-r      
+  
+  yrdietOISST <- do.call('rbind', 
+                         lapply(split(stationsyr, 
+                                      1:nrow(stationsyr)), 
+                  function(x) {
+                        st_join(x, 
+                                sstdf_survdays[sstdf_survdays$yrmody == unique(x$yrmody),],
+                                join = st_nn, k = 1, progress = TRUE)
+                               }
+  ))
+  
+  dietstn_OISST <- rbind(dietstn_OISST, yrdietOISST)
+  
+}
+
+saveRDS(dietstn_OISST, here("data-raw/dietstn_OISST.rds"))

@@ -1,0 +1,30 @@
+library(ncdf4)
+library(raster)
+library(tidyverse)
+
+source("nc_to_raster.R")
+source("raster_to_sstdf.R")
+
+varname <- 'sst'
+
+# Convert netcdf file to raster
+i <- 1984
+#for(i in years) {
+  name <- paste0("sst.day.mean.", i, ".nc")
+  filename <- here::here("data-raw","gridded", "sst_data", paste0("test_", i, ".grd"))
+  text <- knitr::knit_expand(text = "test_{{year}} <- nc_to_raster(nc = name, varname = varname)
+                                     raster::writeRaster(test_{{year}}, filename = filename, overwrite=TRUE)",
+                             year = i)
+  try(eval(parse(text = text)))
+  unlink(name) # remove nc file to save space
+#}
+
+# Save rasters as rds files
+#for(i in years) {
+  name <- get(paste0("test_",i))
+  filename <- here::here("data-raw","gridded", "sst_data", paste0("sst", i, ".rds"))
+  text <- knitr::knit_expand(text = "sst{{year}} <- raster_to_sstdf(brick = name)
+                                     saveRDS(sst{{year}}, filename)",
+                             year = i)
+  try(eval(parse(text = text)))
+#}
