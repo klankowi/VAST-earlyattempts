@@ -35,6 +35,7 @@ stations <- subset(stations, is.na(stations$LON)==FALSE)
 stations$yrmody <- paste0(stations$YEAR, stations$month, stations$day)
 stations <- st_as_sf(stations, coords=c("LON", "LAT"),
                      na.fail=T)
+stations <- subset(stations, YEAR > 1981)
 
 # Initialize progress bar
 pb <- txtProgressBar(min=0, max=length(SSTdfs), initial=0, char="=", style=3)
@@ -87,4 +88,68 @@ for(df in SSTdfs){
 }
 
 # Save output
-saveRDS(stn_OISST, here("data-raw/stn_OISST2.rds"))
+# saveRDS(stn_OISST, here("data-raw/stn_OISST2.rds"))
+
+# Reassign seasons according to cod spawning biology
+if(stations$DATE)
+
+# Read in station data and station-OISST
+stn_OISST_merge <- stn_OISST %>%
+  dplyr::select(-month.y,
+                -day.y,
+                -yrmody.y) %>% 
+  dplyr::rename(month = month.x,
+                day = day.x,
+                yrmody = yrmody.x,
+                oisst = sst) %>%
+  dplyr::select(HAUL_ID, oisst, declon, declat) %>%
+  sf::st_drop_geometry()
+
+# Merge
+agg_stn_all_OISST <- left_join(stations, stn_OISST_merge)
+
+# Save output
+saveRDS(agg_stn_all_OISST, here("data/agg_stn_all_OISST.rds"))
+
+# Create dataset of comparisons
+comparesst <- agg_stn_all_OISST %>%
+  dplyr::filter(YEAR>1981)%>%
+  dplyr::select(SURFACE.TEMP, oisst, declon, declat, SURVEY) %>%
+  na.omit()
+
+# Plot
+ggplot2::ggplot(comparesst.rel, aes(x=SURFACE.TEMP, y=oisst, color=SURVEY, fill=SURVEY)) +
+  geom_point(alpha=0.8, pch=16)+
+  geom_abline(intercept = 0, slope = 1) +
+  theme_bw() 
+
+# Map annual shifts
+mapsst <- agg_stn_all_OISST %>%
+  dplyr::filter(YEAR>1981) %>%
+  dplyr::mutate(sstdiff = SURFACE.TEMP-oisst) %>%
+  dplyr::select(HAUL_ID, YEAR, SEASON, declon, declat, SURFACE.TEMP, oisst, sstdiff) 
+
+st_crs(mapsst) <- "EPSG:4326"
+
+yrmap <- function(mapyr){
+  ggplot2::ggplot(mapsst%>%filter(YEAR==mapyr)) +
+    geom_sf(data = ecodata::coast) +
+    coord_sf(xlim = c(-77, -65), ylim = c(35, 45)) + 
+    geom_point(aes(x=declon, y=declat, colour=sstdiff)) +
+    scale_color_gradient2(low = "blue",
+                          mid = "green",
+                          high = "purple",
+                          midpoint = 0,
+                          na.value = "yellow") +
+    theme_bw() +
+    facet_wrap(~SEASON) +
+    ggtitle(paste("SST difference survey-OISST:", mapyr, sep = " "))
+}
+
+for(mapyr in 2015:2016){
+  
+  #cat("  \n####",  as.character(mapyr),"  \n")
+  print(yrmap(mapyr)) 
+  #cat("  \n")   
+  
+}
