@@ -16,6 +16,20 @@ library(terra)
 library(nngeo)
 library(data.table)
 
+# Set GGplot auto theme
+theme_set(theme(panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                panel.background = element_blank(),
+                axis.line = element_line(colour = "black"),
+                legend.position = "n",
+                axis.text.x=element_text(size=12),
+                axis.text.y=element_text(size=12),
+                axis.title.x=element_text(size=14),
+                axis.title.y=element_text(size=14, angle=90, vjust=2),
+                plot.title=element_text(size=14),
+                plot.caption=element_text(hjust=0, face='italic', size=12)))
+
+
 #list of SST dataframes
 SSTdfs <- list.files(here("data-raw/gridded/sst_data/"), pattern = "*.rds")
 
@@ -36,6 +50,8 @@ stations$yrmody <- paste0(stations$YEAR, stations$month, stations$day)
 stations <- st_as_sf(stations, coords=c("LON", "LAT"),
                      na.fail=T)
 stations <- subset(stations, YEAR > 1981)
+stations <- subset(stations, SEASON == 'FALL' |
+                             SEASON == 'SPRING')
 
 # Initialize progress bar
 pb <- txtProgressBar(min=0, max=length(SSTdfs), initial=0, char="=", style=3)
@@ -109,7 +125,8 @@ stn_OISST_merge <- stn_OISST %>%
 agg_stn_all_OISST <- left_join(stations, stn_OISST_merge)
 
 # Save output
-saveRDS(agg_stn_all_OISST, here("data/agg_stn_all_OISST.rds"))
+#saveRDS(agg_stn_all_OISST, here("data/agg_stn_all_OISST.rds"))
+agg_stn_all_OISST <- readRDS(here("data/agg_stn_all_OISST.rds"))
 
 # Create dataset of comparisons
 comparesst <- agg_stn_all_OISST %>%
@@ -118,14 +135,17 @@ comparesst <- agg_stn_all_OISST %>%
   na.omit()
 
 # Plot
-ggplot2::ggplot(comparesst.rel, aes(x=SURFACE.TEMP, y=oisst, color=SURVEY, fill=SURVEY)) +
+ggplot2::ggplot(comparesst, aes(x=SURFACE.TEMP, y=oisst, color=SURVEY, fill=SURVEY)) +
   geom_point(alpha=0.8, pch=16)+
   geom_abline(intercept = 0, slope = 1) +
+  labs(x = "Field surface temperature (deg C)",
+       y = "OISST (deg C)") +
   theme_bw() 
 
 # Map annual shifts
 mapsst <- agg_stn_all_OISST %>%
   dplyr::filter(YEAR>1981) %>%
+  dplyr::filter(SEASON == 'FALL' | SEASON=='SPRING') %>% 
   dplyr::mutate(sstdiff = SURFACE.TEMP-oisst) %>%
   dplyr::select(HAUL_ID, YEAR, SEASON, declon, declat, SURFACE.TEMP, oisst, sstdiff) 
 
@@ -140,13 +160,13 @@ yrmap <- function(mapyr){
                           mid = "green",
                           high = "purple",
                           midpoint = 0,
-                          na.value = "yellow") +
+                          na.value = "black") +
     theme_bw() +
     facet_wrap(~SEASON) +
     ggtitle(paste("SST difference survey-OISST:", mapyr, sep = " "))
 }
 
-for(mapyr in 2015:2016){
+for(mapyr in 2015:2022){
   
   #cat("  \n####",  as.character(mapyr),"  \n")
   print(yrmap(mapyr)) 
