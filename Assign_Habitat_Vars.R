@@ -14,33 +14,39 @@ library(marmap, quietly=T, verbose=F)
 
 # Load data
 # Load rugosity shapefile
-rugos <- st_read(here("GIS/Rugosity_15as_F.shp"),
+rugos <- st_read(here("data/GIS/Rugosity_15as_F_Dissolve.shp"),
                  quiet = TRUE)
-# Pull rugosity condition 
+# Remove unneeded columns
 rugos$STRATA_1 <- NULL; rugos$rugosity <- NULL; rugos$pct70 <- NULL
 
 # Load sediment shapefile
-sed <- st_read(here(
-  "Sediment_Shapefiles/Sediment_Krig_1K_Polygons.shp"),
-  quiet=TRUE)
+sed <- st_read(here("data/GIS/Sediment_Krig_1K_Polygons.shp"),
+               quiet=TRUE)
 
 # Convert to sf
 rugos_sf <- st_as_sf(rugos)
 sed_sf   <- st_as_sf(sed)
 
+# Fix slight self-intersection issue 
+rugos_sf <- st_make_valid(rugos_sf)
+
 # Transform to unprojected lat-lon
 sed_sf <- st_transform(sed_sf, crs = st_crs(rugos_sf))
 
 # Add survey stations
-survs <- read.csv(here("Survey_Data.csv"))
+survs <- read.csv(here("data/Dataframes/Survey_Data.csv"))
 
-# Convert to sf
+# Remove NA values (cannot be sf object), Convert to sf
 survs.n0 <- survs[is.na(survs$LON)==FALSE,]
 survs.n0 <- survs.n0[is.na(survs.n0$LAT)==FALSE,]
 survs_sf <- st_as_sf(survs.n0, coords = c('LON', 'LAT'))
 
 # Set CRS
 st_crs(survs_sf) <- st_crs(rugos_sf)
+
+# Add stock areas
+strat_sf <- st_read(here("data/GIS/codstox.shp"),
+                 quiet=T)
 
 # Remove points on land
 survs_sf <- erase.point(survs_sf, strat_sf, inside=F)
@@ -58,7 +64,7 @@ rm(rugos, sed, survs, survs.n0, Bathy)
 
 # Join with characteristics of polygon datasets
 survs_sf <- st_join(survs_sf, left=TRUE, sed_sf[,1:10])
-survs_sf <- st_join(survs_sf, left=TRUE, rugos_sf[,1])
+survs_sf <- st_join(survs_sf, left=TRUE, rugos_sf[,2])
 
 # Join with characteristics of bathy raster
 survs.spdf <- as(survs_sf, "Spatial")
@@ -75,4 +81,4 @@ head(survs_sf)
 
 # Great. Save this.
 save(survs_sf, 
-     file = "C:/Users/klankowicz/Box/Katie Lankowicz/Groundfish_Survey_Data_Mods/Mod_Files_3/surveys_habitat.RData")
+     file = here("data/RData_Storage/surveys_habitat.RData"))
