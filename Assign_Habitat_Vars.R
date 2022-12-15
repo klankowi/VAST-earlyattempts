@@ -1,3 +1,9 @@
+# Code to append temporally-stationary (more or less) habitat variables to
+# survey stations. Data include bathymetry, bottom sediment probabilities,
+# and rugosity condition (rough/smooth). 
+# Katie Lankwoicz
+# 15 Dec 2022
+
 # Clear workspace
 rm(list=ls())
 

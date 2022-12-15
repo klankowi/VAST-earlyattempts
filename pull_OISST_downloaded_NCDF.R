@@ -1,10 +1,13 @@
 # Adapted from code written by Kimberly Bastille and Sarah Gaichas
 # Theoretically should be able to download NetCDF files directly into R from
-# NOAA, but recently the files have downloaded as corrupt and unopenable.
+# NOAA, but recently the files have downloaded as corrupt and not openable.
 # Manual downloading of yearly NetCDF files from 
 # (https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html) is slower
 # but more reliable. This code requires those NetCDF files to already be 
 # manually downloaded from NOAA's website and placed into the project directory.
+
+# Clear workspace
+rm(list=ls())
 
 # Load libraries
 library(ncdf4)

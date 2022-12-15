@@ -10,22 +10,24 @@ library(rgdal)
 library(here)
 
 # Load shapefile of desired extrapolation region
-shp <- readOGR(here("data/codstox.shp"))
+shp <- readOGR(here("data/GIS/codstox.shp"))
 
 # Subset to just Western Gulf of Maine (for now)
-shp <- subset(shp, STOCK=='WGOM')
-
-# Remove stock designation, not needed
-shp$STOCK <- NULL
-
-# Set ID (if more than one stock is included)
-#shp$Id <- seq(1:4)
+#shp <- subset(shp, STOCK=='WGOM')
 
 # Set ID (if only one stock is included)
-shp$Id <- 1
+#shp$Id <- 1
+
+# Set ID (if more than one stock is included)
+shp$Id <- seq(1:4)
+
+# Remove stock designation, not needed
+table(shp$STOCK, shp$Id)
+shp$STOCK <- NULL
 
 # Transform to unprojected lat-lon
-sps <- spTransform(shp, CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84"))
+sps <- spTransform(shp, 
+                   CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84"))
 
 # Find UTM
 lon <- sum(bbox(sps)[1,])/2
@@ -69,4 +71,4 @@ region_df <- with(region_grid_LL,
 region <- subset(region_df, !is.na(Id))
 
 # Save it to be read in and passed to VAST later.
-saveRDS(region, file = "user_region_wgom.rds")
+saveRDS(region, file = here("data/RData_Storage/user_region_all.rds"))

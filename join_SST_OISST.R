@@ -3,6 +3,7 @@
 # relationship between the two, visualizes OISST inputs at stations missing
 # empirical data.
 
+# Clear workspace
 rm(list=ls())
 
 # Load libraries
@@ -17,16 +18,16 @@ library(nngeo)
 library(data.table)
 
 # Set GGplot auto theme
-theme_set(theme(panel.grid.major = element_blank(),
+theme_set(theme(panel.grid.major = element_line(color='lightgray'),
                 panel.grid.minor = element_blank(),
                 panel.background = element_blank(),
-                axis.line = element_line(colour = "black"),
-                legend.position = "n",
+                panel.border = element_rect(color='black', size=1, fill=NA),
+                legend.position = "bottom",
                 axis.text.x=element_text(size=12),
                 axis.text.y=element_text(size=12),
                 axis.title.x=element_text(size=14),
                 axis.title.y=element_text(size=14, angle=90, vjust=2),
-                plot.title=element_text(size=14),
+                plot.title=element_text(size=14, hjust = 0, vjust = 1.2),
                 plot.caption=element_text(hjust=0, face='italic', size=12)))
 
 
@@ -36,22 +37,24 @@ SSTdfs <- list.files(here("data-raw/gridded/sst_data/"), pattern = "*.rds")
 # Create empty tibble to fill
 stn_OISST <- tibble()
 
-# Load statino data
-stations <- read.csv(paste0(here("data/Survey_Data.csv")))
+# Load station data
+load(here("data/RData_Storage/surveys_habitat.RData"))
+stations <- sfheaders::sf_to_df(survs_sf, fill=TRUE)
+stations <- dplyr::select(stations, -c(sfg_id, point_id))
+head(stations)  
+stations <- rename(stations, LON=x)
+stations <- rename(stations, LAT=y)
+rm(survs_sf)
 
 # Create datestring to merge SST and OISST
 stations$DATE <- as.POSIXct(stations$DATE, 
-                            format = "%m/%d/%Y")
+                            format = "%Y-%m-%d %H:%M:%S")
 stations$month <- substr(stations$DATE, start=6, stop=7)
 stations$day <- substr(stations$DATE, start=9, stop=10)
-stations <- subset(stations, is.na(stations$LAT)==FALSE)
-stations <- subset(stations, is.na(stations$LON)==FALSE)
 stations$yrmody <- paste0(stations$YEAR, stations$month, stations$day)
 stations <- st_as_sf(stations, coords=c("LON", "LAT"),
                      na.fail=T)
 stations <- subset(stations, YEAR > 1981)
-stations <- subset(stations, SEASON == 'FALL' |
-                             SEASON == 'SPRING')
 
 # Initialize progress bar
 pb <- txtProgressBar(min=0, max=length(SSTdfs), initial=0, char="=", style=3)
@@ -104,10 +107,7 @@ for(df in SSTdfs){
 }
 
 # Save output
-# saveRDS(stn_OISST, here("data-raw/stn_OISST2.rds"))
-
-# Reassign seasons according to cod spawning biology
-if(stations$DATE)
+saveRDS(stn_OISST, here("data/RData_Storage/stn_OISST.rds"))
 
 # Read in station data and station-OISST
 stn_OISST_merge <- stn_OISST %>%
@@ -125,8 +125,8 @@ stn_OISST_merge <- stn_OISST %>%
 agg_stn_all_OISST <- left_join(stations, stn_OISST_merge)
 
 # Save output
-#saveRDS(agg_stn_all_OISST, here("data/agg_stn_all_OISST.rds"))
-agg_stn_all_OISST <- readRDS(here("data/agg_stn_all_OISST.rds"))
+saveRDS(agg_stn_all_OISST, here("data/RData_Storage/agg_stn_all_OISST.rds"))
+#agg_stn_all_OISST <- readRDS(here("data/agg_stn_all_OISST.rds"))
 
 # Create dataset of comparisons
 comparesst <- agg_stn_all_OISST %>%
@@ -145,9 +145,10 @@ ggplot2::ggplot(comparesst, aes(x=SURFACE.TEMP, y=oisst, color=SURVEY, fill=SURV
 # Map annual shifts
 mapsst <- agg_stn_all_OISST %>%
   dplyr::filter(YEAR>1981) %>%
-  dplyr::filter(SEASON == 'FALL' | SEASON=='SPRING') %>% 
+  #dplyr::filter(SEASON == 'FALL' | SEASON=='SPRING') %>% 
   dplyr::mutate(sstdiff = SURFACE.TEMP-oisst) %>%
-  dplyr::select(HAUL_ID, YEAR, SEASON, declon, declat, SURFACE.TEMP, oisst, sstdiff) 
+  dplyr::select(HAUL_ID, YEAR, SEASON, TRUE_SEASON, 
+                declon, declat, SURFACE.TEMP, oisst, sstdiff) 
 
 st_crs(mapsst) <- "EPSG:4326"
 
@@ -157,16 +158,17 @@ yrmap <- function(mapyr){
     coord_sf(xlim = c(-77, -65), ylim = c(35, 45)) + 
     geom_point(aes(x=declon, y=declat, colour=sstdiff)) +
     scale_color_gradient2(low = "blue",
-                          mid = "green",
-                          high = "purple",
+                          mid = "yellow",
+                          high = "red",
                           midpoint = 0,
-                          na.value = "black") +
+                          limits=c(-25, 15),
+                          na.value = "gray") +
     theme_bw() +
-    facet_wrap(~SEASON) +
+    facet_wrap(~TRUE_SEASON) +
     ggtitle(paste("SST difference survey-OISST:", mapyr, sep = " "))
 }
 
-for(mapyr in 2015:2022){
+for(mapyr in 2019:2022){
   
   #cat("  \n####",  as.character(mapyr),"  \n")
   print(yrmap(mapyr)) 
