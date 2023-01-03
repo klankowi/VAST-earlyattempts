@@ -8,8 +8,14 @@ summer <- c(7, 8)
 fall <- c(9, 10, 11, 12)
 
 true_seasons <- function(date){
+  if(lubridate::month(date) %in% winter){
+    return('WINTER')
+  }
   if(lubridate::month(date) %in% spring){
     return('SPRING')
+  }
+  if(lubridate::month(date) %in% summer){
+    return('SUMMER')
   }
   if(lubridate::month(date) %in% fall){
     return('FALL')
