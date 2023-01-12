@@ -2,17 +2,15 @@ $Version
 [1] "VAST_v13_1_0"
 
 $n_x
-[1] 200
+[1] 75
 
 $Region
 [1] "User"
 
 $strata.limits
   STRATA
-1   EGOM
-2    GBK
-3    SNE
-4   WGOM
+1   Reg1
+2   Reg2
 
 $zone
 [1] NA
@@ -61,7 +59,7 @@ $use_anisotropy
 [1] TRUE
 
 $fine_scale
-[1] FALSE
+[1] TRUE
 
 $bias.correct
 [1] FALSE
