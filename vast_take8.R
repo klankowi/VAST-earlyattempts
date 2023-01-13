@@ -30,7 +30,9 @@ theme_set(theme(panel.grid.major = element_line(color='lightgray'),
 
 # Load functions
 # Andrew's function to build extrapolation list
-devtools::source_url("https://raw.github.com/aallyn/TargetsSDM/main/R/vast_functions.r")
+devtools::source_url(
+  "https://raw.github.com/aallyn/TargetsSDM/main/R/vast_functions.r"
+  )
 
 # My function to standardize month-season relationships
 source(here("utilities/true_seasons_func.R"))
@@ -117,33 +119,157 @@ vast_extrap_info<- make_extrapolation_info_aja(Region = "User",
                                                input_grid = vast_grid, 
                                                index_shapes = index_area_shapes)
 
+# Remove intermediates
+rm(EGOM, GBK, grid_sf, index_area_shapes, region_shape, SNE, vast_grid, WGOM)
+
 #### Add sample information and covars ####
 # Load data
 surveys <- readRDS(here("data/RData_storage/agg_stn_all_OISST.rds"))
 
-# Assign season
-for(i in 1:nrow(surveys)){
-  surveys$SEASON[i] <- true_seasons(surveys$DATE[i])
-}
-
 # Convert to df
 ex <- sfheaders::sf_to_df(surveys, fill=T)
 
-# Clean
-ex2 <- ex %>% 
-  dplyr::select(YEAR, SEASON, DATE, COD_N, COD_KG, )
-ex2 <- subset(ex2, is.na(COD_N)==FALSE)
+# Remove junk that will not be needed
+ex <- ex %>% 
+  dplyr::select(HAUL_ID, YEAR, DATE, COD_N, COD_KG, SURVEY, cobble_P,
+                gravel_P, mud_P, rock_P, sand_P, COND, BATHY.DEPTH, oisst,
+                x, y)
+
+# Assign season
+for(i in 1:nrow(ex)){
+  ex$SEASON[i] <- true_seasons(ex$DATE[i])
+}
+
+# Remove points with NA cod abundance (there should be none)
+ex2 <- subset(ex, is.na(COD_N)==FALSE)
+
+# Rearrange by date
 ex2 <- ex2[with(ex2, order(DATE)),]
 row.names(ex2) <- NULL
 
+# Check weight vs number
+cod0_n <- subset(ex2, COD_N == 0 & COD_KG !=0 & is.na(COD_KG)==F)
+summary(cod0_n$COD_KG)
+table(cod0_n$SURVEY)
+# When COD_N = 0, COD_KG should = 0. Set COD_KG to 0.
+for(i in 1:nrow(ex2)){
+  if(ex2$COD_N[i] == 0 & is.na(ex2$COD_KG[i]) == F &
+     ex2$COD_KG[i] != 0){
+    ex2$COD_KG[i] <- 0
+  }
+}
+
+# Check number vs weight
+cod0_kg <- subset(ex2, COD_KG == 0 & COD_N != 0)
+summary(cod0_kg$COD_N)
+table(cod0_kg$SURVEY)
+# When COD_KG = 0, COD_N should = 0. Set COD_KG to NA.
+for(i in 1:nrow(ex2)){
+  if(ex2$COD_KG[i] == 0 & ex2$COD_N[i] != 0){
+    ex2$COD_KG[i] <- NA
+  }
+}
+
+# Add weight 0 to instance where cod_n=0 but cod_kg=NA
+for(i in 1:nrow(ex2)){
+  if(ex2$COD_N[i] == 0 & is.na(ex2$COD_KG[i])==TRUE){
+    ex2$COD_KG[i] <- 0
+  }
+}
+
+# Check work.
+cod0_n <- subset(ex2, COD_N == 0 & COD_KG !=0); nrow(cod0_n)
+cod0_kg <- subset(ex2, COD_KG == 0 & COD_N != 0); nrow(cod0_kg)
+
+# Save sampling data
+survs <- dplyr::select(ex2,
+                       x, y, YEAR, SEASON, SURVEY, COD_N, COD_KG)
+survs$COD_N <- as_units(survs$COD_N, 'counts')
+survs$COD_KG <- as_units(survs$COD_KG, 'kg')
+survs$swept <- as_units(1, unitless)
+survs$vessel <- as.numeric(as.factor(survs$SURVEY)) - 1
+# SURVEY            vessel
+# Coop_GoM_BLLS     0
+# DFO_Trawl         1
+# EGOM_Sentinel     2
+# GSO_Trawl         3
+# MADMF_Industry    4
+# MADMF_Trawl       5
+# MENH_EGOM         6
+# MENH_WGOM         7
+# NEFSC_BTS         8
+# RIDEM_Trawl       9
+# Shrimp_Trawl      10
+# Video_Trawl_SMAST 11
+survs <- dplyr::select(survs, x, y, YEAR, SEASON, COD_N, COD_KG, vessel, swept)
+names(survs) <- c('Lon', 'Lat', names(survs)[3:8])
+str(survs)
+# 'data.frame':	44277 obs. of  8 variables:
+# $ Lon   : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
+# $ Lat   : num  41.6 41.6 41.6 41.4 41.6 ...
+# $ YEAR  : int  1982 1982 1982 1982 1982 1982 1982 1982 1982 1982 ...
+# $ SEASON: chr  "WINTER" "WINTER" "WINTER" "WINTER" ...
+# $ COD_N : Units: [counts] num  0 0 0 0 0 0 0 0 0 0 ...
+# $ COD_KG: Units: [kg] num  0 0 0 0 0 0 0 0 0 0 ...
+# $ vessel: num  3 3 3 3 3 3 3 3 3 3 ...
+# $ swept : Units: [1] num  1 1 1 1 1 1 1 1 1 1 ...
+
+# Save covariates
+covars <- dplyr::select(ex2,
+                        x, y, YEAR, SEASON, cobble_P, gravel_P,
+                        mud_P, rock_P, sand_P, COND, BATHY.DEPTH, oisst)
+names(covars) <- c('Lon', 'Lat', names(covars)[3:12])
+covars$BATHY.DEPTH <- covars$BATHY.DEPTH * -1
+str(covars)
+# 'data.frame':	44277 obs. of  12 variables:
+# $ Lon        : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
+# $ Lat        : num  41.6 41.6 41.6 41.4 41.6 ...
+# $ YEAR       : int  1982 1982 1982 1982 1982 1982 1982 1982 1982 1982 ...
+# $ SEASON     : chr  "WINTER" "WINTER" "WINTER" "WINTER" ...
+# $ cobble_P   : num  0 0 0 0 0 0 0 0 0 0 ...
+# $ gravel_P   : num  0.169 0.169 0.169 0.147 0.169 ...
+# $ mud_P      : num  0.661 0.661 0.661 0.283 0.661 ...
+# $ rock_P     : num  0 0 0 0 0 0 0 0 0 0 ...
+# $ sand_P     : num  0.806 0.806 0.806 0.36 0.806 ...
+# $ COND       : chr  "SMOOTH" "SMOOTH" "SMOOTH" "ROUGH" ...
+# $ BATHY.DEPTH: num  5 5 5 16 5 16 5 16 5 16 ...
+# $ oisst      : num  5.37 3.17 3.67 3.67 3.74 ...
+
+# Remove intermediates
+rm(cod0_kg, cod0_n, fall, spring, summer, winter, ex, ex2, surveys)
+
 #### Make settings ####
 setwd(here("VAST_runs/StrataDens_1"))
-settings = make_settings( n_x = 75,
+settings = make_settings( n_x = 200,
                           Region = "User",
                           purpose = "index2", 
                           bias.correct = FALSE,
                           knot_method = "grid",
                           strata.limits = strata_use)
+
 #### Run model ####
+fit = fit_model( 
+  # Call settings
+    settings = settings, 
+    
+  # Call survey data info
+    Lat_i = survs[,'Lat'], 
+    Lon_i = survs[,'Lon'], 
+    t_i = survs[,'YEAR'], 
+    b_i = survs[,'COD_N'], 
+    a_i = survs[,'swept'], 
+    v_i = survs[,'vessel'],
+  
+  # Call covariate info
+    X1_formula = ~ cobble_P + gravel_P + mud_P + rock_P + sand_P + 
+                   BATHY.DEPTH + oisst,
+    covariate_data = covars,
+  
+  # Call spatial info
+    extrapolation_list = vast_extrap_info,
+  
+  # Tell model to run
+    run_model = TRUE)
 
 #### Plot results ####
+plot( fit )
