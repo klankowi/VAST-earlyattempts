@@ -10,6 +10,7 @@ library(tidyverse)
 library(rgdal)
 library(here)
 library(sp)
+library(ggcorrplot)
 
 # Fix degree sign problem
 xlabs <- seq(-77, -66, 2)
@@ -181,6 +182,7 @@ for(i in 1:nrow(ex2)){
 cod0_n <- subset(ex2, COD_N == 0 & COD_KG !=0); nrow(cod0_n)
 cod0_kg <- subset(ex2, COD_KG == 0 & COD_N != 0); nrow(cod0_kg)
 
+#### Finalize sampling data inputs ####
 # Save sampling data
 survs <- dplyr::select(ex2,
                        x, y, YEAR, SEASON, SURVEY, COD_N, COD_KG)
@@ -202,7 +204,7 @@ survs$vessel <- as.numeric(as.factor(survs$SURVEY)) - 1
 # Shrimp_Trawl      10
 # Video_Trawl_SMAST 11
 survs <- dplyr::select(survs, x, y, YEAR, SEASON, COD_N, COD_KG, vessel, swept)
-names(survs) <- c('Lon', 'Lat', names(survs)[3:8])
+names(survs) <- c('Lon', 'Lat', 'Year', names(survs)[4:8])
 str(survs)
 # 'data.frame':	44277 obs. of  8 variables:
 # $ Lon   : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
@@ -218,7 +220,7 @@ str(survs)
 covars <- dplyr::select(ex2,
                         x, y, YEAR, SEASON, cobble_P, gravel_P,
                         mud_P, rock_P, sand_P, COND, BATHY.DEPTH, oisst)
-names(covars) <- c('Lon', 'Lat', names(covars)[3:12])
+names(covars) <- c('Lon', 'Lat', 'Year', names(covars)[4:12])
 covars$BATHY.DEPTH <- covars$BATHY.DEPTH * -1
 str(covars)
 # 'data.frame':	44277 obs. of  12 variables:
@@ -238,6 +240,20 @@ str(covars)
 # Remove intermediates
 rm(cod0_kg, cod0_n, fall, spring, summer, winter, ex, ex2, surveys)
 
+# Test correlation
+# Create correlation matrix
+df_cormat <- dplyr::select(covars, BATHY.DEPTH, COND, sand_P, rock_P, mud_P,
+                           gravel_P, cobble_P, oisst)
+model.matrix(~0+., data=df_cormat) %>% 
+  cor(use="all.obs", method="spearman") %>% 
+  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=3)
+
+# Rescale covariates to have mean 0 and SD 1 (author rec)
+scaled.covars <- covars[,4:ncol(covars)] %>% 
+  mutate(across(where(is.numeric), scale))
+scaled.covars <- cbind(covars[,1:3], scaled.covars)
+summary(scaled.covars)
+
 #### Make settings ####
 setwd(here("VAST_runs/StrataDens_1"))
 settings = make_settings( n_x = 200,
@@ -255,15 +271,17 @@ fit = fit_model(
   # Call survey data info
     Lat_i = survs[,'Lat'], 
     Lon_i = survs[,'Lon'], 
-    t_i = survs[,'YEAR'], 
+    t_i = survs[,'Year'], 
     b_i = survs[,'COD_N'], 
     a_i = survs[,'swept'], 
     v_i = survs[,'vessel'],
   
   # Call covariate info
-    X1_formula = ~ cobble_P + gravel_P + mud_P + rock_P + sand_P + 
-                   BATHY.DEPTH + oisst,
-    covariate_data = covars,
+    X1_formula = ~ gravel_P + #cobble_P + mud_P + rock_P + 
+                   sand_P + 
+                   #BATHY.DEPTH + 
+                   oisst,
+    covariate_data = scaled.covars,
   
   # Call spatial info
     extrapolation_list = vast_extrap_info,
@@ -273,3 +291,5 @@ fit = fit_model(
 
 #### Plot results ####
 plot( fit )
+
+save.image('strata_covs_1.RData')
