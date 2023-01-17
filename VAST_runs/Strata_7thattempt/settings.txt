@@ -2,17 +2,17 @@ $Version
 [1] "VAST_v14_0_1"
 
 $n_x
-[1] 200
+[1] 100
 
 $Region
 [1] "User"
 
 $strata.limits
-  STRATA
-1   EGOM
-2    GBK
-3    SNE
-4   WGOM
+     STRATA
+EGOM      1
+GBK       2
+SNE       3
+WGOM      4
 
 $zone
 [1] NA

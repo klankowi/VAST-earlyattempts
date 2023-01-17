@@ -8,11 +8,18 @@ $Region
 [1] "User"
 
 $strata.limits
-  STRATA
-1   EGOM
-2    GBK
-3    SNE
-4   WGOM
+$strata.limits$EGOM
+[1] 1
+
+$strata.limits$GBK
+[1] 2
+
+$strata.limits$SNE
+[1] 3
+
+$strata.limits$WGOM
+[1] 4
+
 
 $zone
 [1] NA
