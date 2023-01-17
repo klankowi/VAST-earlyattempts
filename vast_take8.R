@@ -290,6 +290,7 @@ fit = fit_model(
     run_model = TRUE)
 
 #### Plot results ####
-plot( fit )
 
 save.image('strata_covs_1.RData')
+
+plot( fit )
