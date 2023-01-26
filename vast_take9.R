@@ -151,6 +151,7 @@ for(i in 1:nrow(ex)){
 
 # Remove points with NA cod abundance (there should be none)
 ex2 <- subset(ex, is.na(COD_N)==FALSE)
+ex2 <- subset(ex2, SEASON !='WINTER' & SEASON !='SUMMER')
 
 # Rearrange by date
 ex2 <- ex2[with(ex2, order(DATE)),]
@@ -230,7 +231,7 @@ rm(df_cormat, all_dat, scaled.covars)
 #### Add seasonal information ####
 # Set of years and seasons
 year_set = sort(unique(all.scaled$Year))
-season_set = c('WINTER', 'SPRING', 'SUMMER', 'FALL')
+season_set = c('SPRING', 'FALL')
 
 # Create a grid with all unique combinations of seasons and years and then combine these into one "year_season" variable
 yearseason_grid = expand.grid("Season" = season_set, "Year" = year_set)
@@ -383,12 +384,13 @@ cov_dat = data.frame(
   "Year_Cov" = factor(full_data$Year, levels = year_set),
   "Season" = full_data$Season,
   "Lat" = full_data$Lat,
-  "Lon" = full_data$Lon,
-  "gravel_P" = full_data$cobble_P,
-  "oisst" = full_data$oisst)
+  "Lon" = full_data$Lon)#,
+  #"gravel_P" = full_data$cobble_P,
+  #"oisst" = full_data$oisst)
 
 #### Make settings ####
 rm(list=setdiff(ls(), c("cov_dat", "strata_use", "samp_dat", "vast_extrap_info")))
+gc()
 
 setwd(here("VAST_runs/Season_1"))
 settings = make_settings( n_x = 200,
@@ -402,7 +404,7 @@ settings = make_settings( n_x = 200,
                           ObsModel = c(1, 1))
 
 # Creating model formula
-formula_use = ~ Season + Year_Cov + gravel_P
+formula_use = ~ Season + Year_Cov #+ gravel_P
 
 # Implement corner constraint for linear effect but not spatially varying effect:
 # * one level for each term is 2 (just spatially varying)
