@@ -17,30 +17,29 @@ library(viridis, quietly=T, verbose=F)
 library(RColorBrewer, quietly=T, verbose=F)
 library(spatialEco, quietly=T, verbose=F)
 library(marmap, quietly=T, verbose=F)
+library(beepr, quietly=T, verbose=F)
 
 # Load data
 # Load rugosity shapefile
-rugos <- st_read(here("data/GIS/Rugosity_15as_F_Dissolve.shp"),
-                 quiet = TRUE)
-# Remove unneeded columns
-rugos$STRATA_1 <- NULL; rugos$rugosity <- NULL; rugos$pct70 <- NULL
+load(here("data/RData_Storage/rugosity_wgs.RData"))
 
 # Load sediment shapefile
 sed <- st_read(here("data/GIS/Sediment_Krig_1K_Polygons.shp"),
                quiet=TRUE)
 
 # Convert to sf
-rugos_sf <- st_as_sf(rugos)
 sed_sf   <- st_as_sf(sed)
 
 # Fix slight self-intersection issue 
-rugos_sf <- st_make_valid(rugos_sf)
+rugos_sf <- st_make_valid(rugos_sf_wgs)
+sed_sf <- st_make_valid(sed_sf)
 
 # Transform to unprojected lat-lon
+st_crs(rugos_sf); st_crs(sed_sf)
 sed_sf <- st_transform(sed_sf, crs = st_crs(rugos_sf))
 
 # Add survey stations
-survs <- read.csv(here("data/Dataframes/Survey_Data.csv"))
+survs <- read.csv(here("data/Dataframes/Survey_Data_AgeSep.csv"))
 
 # Remove NA values (cannot be sf object), Convert to sf
 survs.n0 <- survs[is.na(survs$LON)==FALSE,]
@@ -53,6 +52,10 @@ st_crs(survs_sf) <- st_crs(rugos_sf)
 # Add stock areas
 strat_sf <- st_read(here("data/GIS/codstox.shp"),
                  quiet=T)
+strat_sf <- st_cast(strat_sf, "POLYGON")
+strat_sf <- st_make_valid(strat_sf)
+ggplot() +
+  geom_sf(data=strat_sf, aes(fill=STOCK))
 
 # Remove points on land
 survs_sf <- erase.point(survs_sf, strat_sf, inside=F)
@@ -70,7 +73,10 @@ rm(rugos, sed, survs, survs.n0, Bathy)
 
 # Join with characteristics of polygon datasets
 survs_sf <- st_join(survs_sf, left=TRUE, sed_sf[,1:10])
-survs_sf <- st_join(survs_sf, left=TRUE, rugos_sf[,2])
+beep(1)
+names(rugos_sf) <- c('rugos', 'geometry')
+survs_sf <- st_join(survs_sf, left=TRUE, rugos_sf[,1])
+beep(1)
 
 # Join with characteristics of bathy raster
 survs.spdf <- as(survs_sf, "Spatial")
@@ -87,4 +93,5 @@ head(survs_sf)
 
 # Great. Save this.
 save(survs_sf, 
-     file = here("data/RData_Storage/surveys_habitat.RData"))
+     file = here("data/RData_Storage/surveys_habitat_agesep.RData"))
+beep(2)

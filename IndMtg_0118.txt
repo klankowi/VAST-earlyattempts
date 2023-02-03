@@ -1,11 +1,14 @@
 ## Model notes
 Categorical models for length 
-Cutoff dependent on growth curve (age 2, age 5)
-Calibrate across different gear types, is sensitive to area swept?
+Cutoff dependent on growth curve 
+	(age 2, age 5)
+Calibrate across different gear types, 
+	is sensitive to area swept?
 
 ## FOr jackie and vito
   what questions can i answer with this tool
-articulate-- other models we can explore if questions are not approp
+articulate-- other models we can explore 
+	if questions are not approp
 
 # Sensitivity
 remove non-trawl surveys
@@ -14,6 +17,15 @@ remove non-trawl surveys
 framing questions and example product
 
 # for alex
-counterfactual: base vs. gravel-sand-oisst model
-gear combo - do invest time in swept area from all surveys? or is 1 ok.
+counterfactual: 
+	base vs. gravel-sand-oisst model
+gear combo - 
+	invest time in swept area from all? 
+	or is 1 ok.
 seasonal memory limits?
+
+## 
+Bin in post 
+Calibrated vs uncalibrated albatross/ bigelow data
+set bounds around static gear
+
