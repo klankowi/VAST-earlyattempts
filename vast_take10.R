@@ -12,10 +12,6 @@ library(here)
 library(sp)
 library(ggcorrplot)
 
-# Fix degree sign problem
-xlabs <- seq(-77, -66, 2)
-ylabs <- seq(36, 46, 2)
-
 # Set GGplot auto theme
 theme_set(theme(panel.grid.major = element_line(color='lightgray'),
                 panel.grid.minor = element_blank(),
@@ -130,13 +126,21 @@ source(here("utilities/true_seasons_func.R"))
 #### Add sample information and covars ####
 # Load data
 surveys <- readRDS(here("data/RData_storage/agg_stn_all_OISST.rds"))
-surveys.age <- read.csv(here("data/Survey_Data_AgeSep.csv"))
+surveys.age <- read.csv(here("data/Dataframes/Survey_Data_AgeSep.csv"))
 surveys.age <- dplyr::select(surveys.age, HAUL_ID, COD_N, AGE)
 surveys.age$NEW_COD_N <- surveys.age$COD_N
 surveys.age$COD_N <- NULL
 #surveys$COD_N <- NULL
 
-test <- left_join(surveys, surveys.age)
+test.ageclass1 <- left_join(surveys, surveys.age[surveys.age$AGE == "A0-2",], by=c("HAUL_ID"))
+test.ageclass2 <- left_join(surveys, surveys.age[surveys.age$AGE == "A2-5",], by=c("HAUL_ID"))
+test.ageclass3 <- left_join(surveys, surveys.age[surveys.age$AGE == "A5PLUS",], by=c("HAUL_ID"))
+
+test <- rbind(test.ageclass1, test.ageclass2, test.ageclass3)
+
+test <- test[with(test, order(DATE, HAUL_ID, AGE)),]
+row.names(test) <- NULL
+
 broken.dfo <- subset(test, SURVEY=='DFO_Trawl' & is.na(test$AGE) == TRUE &
                        test$COD_N != 0)
 fix.dfo <- subset(test, SURVEY=='DFO_Trawl' & is.na(test$AGE) == TRUE &
@@ -200,45 +204,51 @@ survs$vessel <- as.numeric(as.factor(survs$SURVEY)) - 1
 # RIDEM_Trawl       8
 # Video_Trawl_SMAST 9
 
-survs$LBIN <- as.numeric(as.factor(survs$AGE)) -1
-# AGE       LBIN
-# A0-2      0
-# A2-5      1
-# A5PLUS    2
+survs$L_S_BIN <- paste0(survs$AGE, "_", survs$SEASON)
+survs$L_S_BIN <- factor(survs$L_S_BIN,
+                        levels = c("A0-2_WINTER", "A0-2_SPRING", "A0-2_SUMMER", "A0-2_FALL",
+                                   "A2-5_WINTER", "A2-5_SPRING", "A2-5_SUMMER", "A2-5_FALL",
+                                   "A5PLUS_WINTER", "A5PLUS_SPRING", "A5PLUS_SUMMER", "A5PLUS_FALL"),
+                        labels = c(0, 1, 2, 3,
+                                   4, 5, 6, 7,
+                                   8, 9, 10, 11))
+survs$L_S_BIN <- as.numeric(survs$L_S_BIN) -1
+# AGE     SEASONS                       LEVELS
+# A0-2    WINTER, SPRING, SUMMER, FALL  0, 1, 2, 30
+# A2-5    WINTER, SPRING, SUMMER, FALL  4, 5, 6, 7
+# A5PLUS  WINTER, SPRING, SUMMER, FALL  8, 9, 10, 11
 
-survs <- dplyr::select(survs, x, y, YEAR, SEASON, COD_N, LBIN, vessel, swept)
-names(survs) <- c('Lon', 'Lat', 'Year', names(survs)[4:8])
+survs <- dplyr::select(survs, x, y, YEAR, COD_N, L_S_BIN, vessel, swept)
+names(survs) <- c('Lon', 'Lat', 'Year', 'COD_N', 'L_S_BIN', 'vessel', 'swept')
 str(survs)
-# 'data.frame':	44277 obs. of  8 variables:
-# $ Lon   : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
-# $ Lat   : num  41.6 41.6 41.6 41.4 41.6 ...
-# $ YEAR  : int  1982 1982 1982 1982 1982 1982 1982 1982 1982 1982 ...
-# $ SEASON: chr  "WINTER" "WINTER" "WINTER" "WINTER" ...
-# $ COD_N : Units: [counts] num  0 0 0 0 0 0 0 0 0 0 ...
-# $ COD_KG: Units: [kg] num  0 0 0 0 0 0 0 0 0 0 ...
-# $ vessel: num  3 3 3 3 3 3 3 3 3 3 ...
-# $ swept : Units: [1] num  1 1 1 1 1 1 1 1 1 1 ...
+# 'data.frame':	116166 obs. of  7 variables:
+#   $ Lon    : num  -74.8 -74.8 -74.8 -74.8 -74.8 ...
+# $ Lat    : num  37.3 37.3 37.3 37.4 37.4 ...
+# $ Year   : int  1982 1982 1982 1982 1982 1982 1982 1982 1982 1982 ...
+# $ COD_N  : Units: [counts] num  0 0 0 0 0 0 0 0 0 0 ...
+# $ L_S_BIN: num  2 6 10 2 6 10 2 6 10 2 ...
+# $ vessel : num  7 7 7 7 7 7 7 7 7 7 ...
+# $ swept  : Units: [1] num  1 1 1 1 1 1 1 1 1 1 ...
 
 # Save covariates
 covars <- dplyr::select(ex2,
-                        x, y, YEAR, SEASON, cobble_P, gravel_P,
+                        x, y, YEAR, cobble_P, gravel_P,
                         mud_P, rock_P, sand_P, COND, BATHY.DEPTH, oisst)
-names(covars) <- c('Lon', 'Lat', 'Year', names(covars)[4:12])
+names(covars) <- c('Lon', 'Lat', 'Year', names(covars)[4:11])
 covars$BATHY.DEPTH <- covars$BATHY.DEPTH * -1
 str(covars)
-# 'data.frame':	44277 obs. of  12 variables:
-# $ Lon        : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
-# $ Lat        : num  41.6 41.6 41.6 41.4 41.6 ...
-# $ YEAR       : int  1982 1982 1982 1982 1982 1982 1982 1982 1982 1982 ...
-# $ SEASON     : chr  "WINTER" "WINTER" "WINTER" "WINTER" ...
-# $ cobble_P   : num  0 0 0 0 0 0 0 0 0 0 ...
-# $ gravel_P   : num  0.169 0.169 0.169 0.147 0.169 ...
-# $ mud_P      : num  0.661 0.661 0.661 0.283 0.661 ...
-# $ rock_P     : num  0 0 0 0 0 0 0 0 0 0 ...
-# $ sand_P     : num  0.806 0.806 0.806 0.36 0.806 ...
+# 'data.frame':	116166 obs. of  11 variables:
+#   $ Lon        : num  -74.8 -74.8 -74.8 -74.8 -74.8 ...
+# $ Lat        : num  37.3 37.3 37.3 37.4 37.4 ...
+# $ Year       : int  1982 1982 1982 1982 1982 1982 1982 1982 1982 1982 ...
+# $ cobble_P   : num  0.05 0.05 0.05 0 0 0 0 0 0 0 ...
+# $ gravel_P   : num  0.2 0.2 0.2 0 0 ...
+# $ mud_P      : num  0.3 0.3 0.3 0.15 0.15 ...
+# $ rock_P     : num  0.0499 0.0499 0.0499 0 0 0 0 0 0 0 ...
+# $ sand_P     : num  1 1 1 1 1 1 1 1 1 1 ...
 # $ COND       : chr  "SMOOTH" "SMOOTH" "SMOOTH" "ROUGH" ...
-# $ BATHY.DEPTH: num  5 5 5 16 5 16 5 16 5 16 ...
-# $ oisst      : num  5.37 3.17 3.67 3.67 3.74 ...
+# $ BATHY.DEPTH: num  50 50 50 46 46 46 32 32 32 42 ...
+# $ oisst      : num  6.62 6.62 6.62 6.62 6.62 ...
 
 # Remove intermediates
 rm(ex, ex2, surveys)
@@ -267,19 +277,26 @@ summary(scaled.covars)
 
 #### Make settings ####
 user_region <- readRDS(here('data/RData_Storage/user_region_all.rds'))
+user_all <- user_region
+user_all$Id <- 'All'
+user_region <- rbind(user_region, user_all)
+user_region <- user_region[with(user_region, order(Lon, Lat)),]
+row.names(user_region) <- NULL
+strata_use <- data.frame('STRATA' = c("All", "EGOM", 'GBK', 'SNE', 'WGOM'))
 
-setwd(here("VAST_runs/StrataDensCats_3"))
+setwd(here("VAST_runs/StrataDensCats_4"))
 settings = make_settings( n_x = 200,
                           Region = "User",
                           purpose = "index2", 
                           bias.correct = FALSE,
-                          knot_method = "grid"#,
-                          #strata.limits = strata_use
+                          knot_method = "grid",
+                          strata.limits = strata_use
                           )
 
 
 
 #### Run model ####
+settings$FieldConfig["Epsilon", "Component_1"] <- 0
 fit = fit_model( 
   # Call settings
     settings = settings, 
@@ -291,7 +308,7 @@ fit = fit_model(
     b_i = survs[,'COD_N'], 
     a_i = survs[,'swept'], 
     v_i = survs[,'vessel'],
-    c_iz = survs[,"LBIN"],
+    c_iz = survs[,"L_S_BIN"],
   
   # Call covariate info
     X1_formula = ~ gravel_P + #cobble_P + mud_P + rock_P + 
@@ -306,11 +323,11 @@ fit = fit_model(
   
   # Tell model to run
     run_model = TRUE)
-#beep(8)
+beep(8)
 
 #### Plot results ####
 
-save.image('strata_cats_3.RData')
+save.image('strata_cats_4.RData')
 
 plot( fit )
 
