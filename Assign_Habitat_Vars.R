@@ -39,7 +39,7 @@ st_crs(rugos_sf); st_crs(sed_sf)
 sed_sf <- st_transform(sed_sf, crs = st_crs(rugos_sf))
 
 # Add survey stations
-survs <- read.csv(here("data/Dataframes/Survey_Data_AgeSep.csv"))
+survs <- read.csv(here("data/Dataframes/Bio_Data_Agesep.csv"))
 
 # Remove NA values (cannot be sf object), Convert to sf
 survs.n0 <- survs[is.na(survs$LON)==FALSE,]
@@ -93,5 +93,5 @@ head(survs_sf)
 
 # Great. Save this.
 save(survs_sf, 
-     file = here("data/RData_Storage/surveys_habitat_agesep.RData"))
+     file = here("data/RData_Storage/surveys_habitat_agesep2.RData"))
 beep(2)
