@@ -4,14 +4,15 @@ rm(list=ls())
 
 # Load libraries
 # IMPORTANT NOTE: VAST must be running >=V14, will not work with V13.
+library(units)
 library(VAST)
-library(sf)
-library(tidyverse)
-library(rgdal)
 library(here)
+library(tidyverse)
+library(beepr)
+library(sf)
+library(rgdal)
 library(sp)
 library(ggcorrplot)
-library(beepr)
 
 # Set GGplot auto theme
 theme_set(theme(panel.grid.major = element_line(color='lightgray'),
@@ -31,98 +32,54 @@ theme_set(theme(panel.grid.major = element_line(color='lightgray'),
 
 #### Add sample information and covars ####
 # Load data
-surveys <- readRDS(here("data/RData_storage/agg_stn_all_OISST_agesep2.rds"))
-surveys.list <- split(surveys, f=surveys$AGEGROUP)
+surveys <- read.csv(here("data/Dataframes/Bio_Data_Agesep3.csv"))
 
-for(i in 1:length(surveys.list)){
-  if(names(surveys.list)[i] == "Unknown"){
-    blank <- subset(surveys, AGEGROUP == 'Age0-2')
-    blank$AGE_N <- 0; blank$AGE_KG <- 0
-    blank$Data_type <- 'Biomass_KG'
-    blank$AGEGROUP <- 'Unknown'
-    surveys.list[[i]] <- rbind(surveys.list[[i]], blank)
-    
-    rm(blank)
+# Remove data from 2022 (incomplete)
+ex <- subset(surveys, YEAR < 2022)
+ex$RESPONSE <- ceiling(ex$AGE_N)
+#ex <- subset(ex, AGEGROUP == 'Age2-5' | AGEGROUP == 'Age5+')
+
+# Check that there are no missing responses
+nrow(ex[is.na(ex$RESPONSE)==TRUE,])
+#nrow(ex[is.na(ex$Data_type)==TRUE,])
+
+# Add environmental data
+env <- readRDS(here("data/RData_Storage/agg_stn_all_OISST.RDS"))
+env <- sfheaders::sf_to_df(env, fill=T)
+env <- dplyr::select(env,
+                     HAUL_ID, cobble_P, gravel_P, rock_P, mud_P, sand_P,
+                     BATHY.DEPTH, oisst)
+ex2 <- left_join(ex, env, by="HAUL_ID")
+
+# Add annoying rugosity data
+rugos <- readRDS(here("data/RData_Storage/agg_stn_all_OISST_agesep2.RDS"))
+rugos <- sfheaders::sf_to_df(rugos, fill=T)
+rugos <- dplyr::select(rugos, HAUL_ID, rugos)
+rugos <- unique(rugos)
+
+ex3 <- left_join(ex2, rugos, by="HAUL_ID")
+
+ex4 <- subset(ex3, !is.na(ex3$rugos))
+
+for(i in 1:nrow(ex4)){
+  if(ex4$TIME[i] %% 2 == 0){
+    ex4$add[i] <- 0.5
   }
-  if(names(surveys.list)[i] !="Unknown"){
-    blank <- subset(surveys, AGEGROUP == 'Unknown')
-    blank$AGE_N <- 0; blank$AGE_KG <- 0
-    blank$Data_type <- 'Biomass_KG'
-    blank$AGEGROUP <- surveys.list[[i]]$AGEGROUP[1]
-    surveys.list[[i]] <- rbind(surveys.list[[i]], blank)
-    
-    rm(blank)
+  if(ex4$TIME[i] %% 2 != 0){
+    ex4$add[i] <- 0
   }
 }
 
-surveys <- do.call(rbind, surveys.list)
-surveys <- surveys[with(surveys, order(SURVEY, DATE, HAUL_ID, AGEGROUP)),]
-row.names(surveys) <- NULL
-table(surveys$AGEGROUP)
-head(surveys)
+ex4$TIME2 <- ex4$YEAR + ex4$add
 
-surveys <- unique(surveys)
-
-surveys$month <- as.numeric(surveys$month)
-
-surveys$TRUE_SEASON[surveys$month %in% c(3,  4,  5,  6, 7, 8)] <- 'A.SPRING'
-surveys$TRUE_SEASON[surveys$month %in% c(9, 10, 11, 12, 1, 2)] <- 'B.FALL'
-
-surveys$TRUE_SEASON <- factor(surveys$TRUE_SEASON, 
-                              levels = c('A.SPRING', 
-                                         'B.FALL'))
-
-surveys$t <- paste0(surveys$YEAR, "_", surveys$TRUE_SEASON)
-table(surveys$t); length(table(surveys$t))
-
-# Convert to df
-ex <- sfheaders::sf_to_df(surveys, fill=T)
-
-ex$RESPONSE <- ex$AGE_KG
-nrow(ex[is.na(ex$RESPONSE)==TRUE,])
-for(i in 1:nrow(ex)){
-  if(is.na(ex$RESPONSE[i])){
-    ex$RESPONSE[i] <- ex$AGE_N[i]
-  }
-}
-nrow(ex[is.na(ex$RESPONSE)==TRUE,])
-
-# Make sure there aren't duplicates
-ex$sfg_id <- NULL; ex$point_id <- NULL
-ex2 <- unique(ex)
-
-# # Remove junk that will not be needed
-# ex <- ex %>% 
-#   dplyr::select(HAUL_ID, YEAR, DATE, COD_N, AGE, SURVEY, cobble_P,
-#                 gravel_P, mud_P, rock_P, sand_P, COND, BATHY.DEPTH, oisst,
-#                 x, y)
-# 
-# # Assign season
-# for(i in 1:nrow(ex)){
-#   ex$SEASON[i] <- true_seasons(ex$DATE[i])
-# }
-
-# # Remove points with NA cod abundance (there should be none)
-# ex2 <- subset(ex, is.na(COD_N)==FALSE)
-
-# Rearrange by date
-ex2 <- ex2[with(ex2, order(DATE, HAUL_ID, AGEGROUP)),]
-row.names(ex2) <- NULL
-
-# Remove missing rugosity values (as density covar, cannot have NAs)
-ex3 <- ex2[is.na(ex2$rugos)==FALSE,]
-
-# Convert season-year to time
-ex3$t <- as.numeric(as.factor(ex3$t))
-table(ex3$t)
 
 #### Finalize sampling data inputs ####
 # Save sampling data
-survs <- dplyr::select(ex3,
-                       x, y, YEAR, TRUE_SEASON, t, SURVEY, RESPONSE, 
-                       AGEGROUP, Data_type)
+survs <- dplyr::select(ex4,
+                       LON, LAT, YEAR, SEASON, TIME2, SURVEY, RESPONSE, 
+                       AGEGROUP)
 #survs$COD_N <- as_units(survs$COD_N, 'counts')
-survs$swept <- as_units(1, unitless)
+survs$swept <- 1
 survs$vessel <- as.numeric(as.factor(survs$SURVEY)) - 1
 # vessel    survey
 # 0         ASMFC Shrimp Trawl  
@@ -137,82 +94,60 @@ survs$vessel <- as.numeric(as.factor(survs$SURVEY)) - 1
 # 9         Sentinel   
 # 10        SMAST Video Trawl   
 
-survs$Data_type <- factor(survs$Data_type, levels=c("Count", "Biomass_KG"))
+#survs$Data_type <- factor(survs$Data_type, levels=c("Count", "Biomass_KG"))
 
-# survs$L_S_BIN <- paste0(survs$AGE, "_", survs$SEASON)
-# survs$L_S_BIN <- factor(survs$L_S_BIN,
-#                         levels = c("A0-2_WINTER", "A0-2_SPRING", "A0-2_SUMMER", "A0-2_FALL",
-#                                    "A2-5_WINTER", "A2-5_SPRING", "A2-5_SUMMER", "A2-5_FALL",
-#                                    "A5PLUS_WINTER", "A5PLUS_SPRING", "A5PLUS_SUMMER", "A5PLUS_FALL"),
-#                         labels = c(0, 1, 2, 3,
-#                                    4, 5, 6, 7,
-#                                    8, 9, 10, 11))
-# survs$L_S_BIN <- as.numeric(survs$L_S_BIN) -1
-# AGE     SEASONS                       LEVELS
-# A0-2    WINTER, SPRING, SUMMER, FALL  0, 1, 2, 30
-# A2-5    WINTER, SPRING, SUMMER, FALL  4, 5, 6, 7
-# A5PLUS  WINTER, SPRING, SUMMER, FALL  8, 9, 10, 11
+survs$AGE <- as.numeric(factor(survs$AGEGROUP, levels=c('Age0-2', 'Age2-5', 'Age5+',
+                                             'Unknown'))) - 1
+# Age 2 - 5: 0
+# Age 5+   : 1
 
-survs$AGE <- as.numeric(as.factor(survs$AGEGROUP)) -1
-# Age 0 - 2: 0
-# Age 2 - 5: 1
-# Age 5+   : 2
-# Unknown  : 3
-
-survs <- dplyr::select(survs, x, y, t, RESPONSE, AGE, vessel, swept, Data_type)
+survs <- dplyr::select(survs, LON, LAT, TIME2, RESPONSE, AGE, vessel, swept)
 names(survs) <- c('Lon', 'Lat', 'Year', 'Response_variable', 
-                  'Age', 'vessel', 'swept', "Data_type")
+                  'Age', 'vessel', 'swept')
+survs$Response_variable <- as_units(survs$Response_variable, 'counts')
 str(survs)
-# 'data.frame':	173880 obs. of  8 variables:
-#   $ Lon              : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
-# $ Lat              : num  41.6 41.6 41.6 41.6 41.6 ...
-# $ Year             : num  0 0 0 0 0 0 0 0 0 0 ...
-# $ Response_variable: num  0 0 0 0 0 0 0 0 0 0 ...
-# $ Age              : num  0 1 2 3 0 1 2 3 0 1 ...
-# $ vessel           : num  2 2 2 2 2 2 2 2 2 2 ...
-# $ swept            : Units: [1] num  1 1 1 1 1 1 1 1 1 1 ...
-# $ Data_type        : num  1 1 1 1 1 1 1 1 1 1 ...
+# Spring ends in 0, Fall ends in 0.5
 
 # Save covariates
-covars <- dplyr::select(ex3,
-                        x, y, t, cobble_P, gravel_P,
+covars <- dplyr::select(ex4,
+                        LON, LAT, TIME2, cobble_P, gravel_P,
                         mud_P, rock_P, sand_P, rugos, BATHY.DEPTH, oisst)
+covars$BATHY.DEPTH[covars$BATHY.DEPTH < 0] <- 
+  covars$BATHY.DEPTH[covars$BATHY.DEPTH < 0] * -1
 names(covars) <- c('Lon', 'Lat', 'Year', names(covars)[4:11])
-covars$BATHY.DEPTH <- covars$BATHY.DEPTH * -1
 table(covars$Year)
-str(covars)
-# 'data.frame':	173880 obs. of  11 variables:
-#   $ Lon        : num  -71.4 -71.4 -71.4 -71.4 -71.4 ...
-# $ Lat        : num  41.6 41.6 41.6 41.6 41.6 ...
-# $ Year       : num  0 0 0 0 0 0 0 0 0 0 ...
-# $ cobble_P   : num  0 0 0 0 0 0 0 0 0 0 ...
-# $ gravel_P   : num  0.169 0.169 0.169 0.169 0.169 ...
-# $ mud_P      : num  0.661 0.661 0.661 0.661 0.661 ...
-# $ rock_P     : num  0 0 0 0 0 0 0 0 0 0 ...
-# $ sand_P     : num  0.806 0.806 0.806 0.806 0.806 ...
-# $ rugos      : num  0.393 0.393 0.393 0.393 0.393 ...
-# $ BATHY.DEPTH: num  7.02 7.02 7.02 7.02 7.02 ...
-# $ oisst      : num  5.37 5.37 5.37 5.37 3.17 ...
 
 # Test correlation
 # Create correlation matrix
-# df_cormat <- dplyr::select(covars, BATHY.DEPTH, rugos, sand_P, rock_P, mud_P,
-#                            gravel_P, cobble_P, oisst)
-# model.matrix(~0+., data=df_cormat) %>%
-#   cor(use="all.obs", method="spearman") %>%
-#   ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=3)
+df_cormat <- dplyr::select(covars, BATHY.DEPTH, rugos, sand_P, rock_P, mud_P,
+                           gravel_P, cobble_P, oisst)
+model.matrix(~0+., data=df_cormat) %>%
+  cor(use="all.obs", method="spearman") %>%
+  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=3)
 
 # Rescale covariates to have mean 0 and SD 1 (author rec)
 scaled.covars <- covars[,4:ncol(covars)] %>% 
   mutate(across(where(is.numeric), scale))
 scaled.covars <- cbind(covars[,1:3], scaled.covars)
 summary(scaled.covars)
+scaled.covars <- data.frame(
+  Lon         = as.numeric(scaled.covars$Lon),
+  Lat         = as.numeric(scaled.covars$Lat),
+  Year        = as.numeric(scaled.covars$Year),
+  cobble_P    = as.numeric(scaled.covars$cobble_P),
+  gravel_P    = as.numeric(scaled.covars$gravel_P),
+  mud_P       = as.numeric(scaled.covars$mud_P),
+  rock_P      = as.numeric(scaled.covars$rock_P),
+  sand_P      = as.numeric(scaled.covars$sand_P),
+  rugos       = as.numeric(scaled.covars$rugos),
+  BATHY.DEPTH = as.numeric(scaled.covars$BATHY.DEPTH),
+  oisst       = as.numeric(scaled.covars$oisst)
+)
+str(scaled.covars)
 
 #### Year subset for testing ####
 #survs <- subset(survs, Year > 2001)
 #scaled.covars <- subset(scaled.covars, Year > 2001) 
-#survs <- subset(survs, LBIN ==1 | LBIN ==2)
-#survs$LBIN <- survs$LBIN - 1
 
 #### Make settings ####
 user_region <- readRDS(here('data/RData_Storage/user_region_all.rds'))
@@ -221,58 +156,95 @@ user_region$Id <- NULL; user_region$row <- NULL
 user_region <- user_region[with(user_region, order(Lon, Lat)),]
 row.names(user_region) <- NULL
 head(user_region)
-#strata_use <- data.frame('STRATA' = c("All", "EGOM", 'GBK', 'SNE', 'WGOM'))
+strata_use <- data.frame('STRATA' = c("All"))
 
 # Remove intermediates
-rm(covars, ex, ex2, ex3, surveys, surveys.list, i, `%notin%`, df_cormat)
+rm(covars, ex, ex2, surveys, surveys2, sus, badtab,
+   surveys.list, i, `%notin%`, df_cormat, temp, temp.list, f, sacrifices,
+   alllocs, badtab2, ex.f, ex5, shit, bads, checktab, j, reponses, responses)
+rm(df, env, rugos)
 gc()
 
-setwd(here("VAST_runs/StrataDensCats_5"))
-settings = make_settings( n_x = 200,
-                          Region = "User",
-                          purpose = "index2", 
-                          bias.correct = FALSE,
-                          knot_method = "grid"
-                          #strata.limits = strata_use
-                          )
-settings$ObsModel = cbind( c(14,2), 1 )
+setwd(here('data/RData_Storage'))
+#save.image('shortcut_VAST_data2.RData')
+
+#### Start from here ####
+#m(list=ls())
+gc()
+library(VAST)
+library(here)
+library(tidyverse)
+library(beepr)
+setwd(here('data/RData_Storage'))
+#save.image('shortcut_VAST_data.RData')
+#load(here('data/RData_Storage/shortcut_VAST_data2.RData'))
+
+setwd(here("VAST_runs/StrataDensCats_7"))
 
 #### Run model ####
+# Subsample
+#survs <- survs[survs$Year < 1993,]
+#scaled.covars <- scaled.covars[scaled.covars$Year < 1993,]
+
+# Set year labels
+year.labs <- c(seq(1982, 2021, 1), seq(1982, 2021, 1))
+year.labs <- year.labs[order(year.labs)]
+seas.labs <- rep(c('Spring', 'Fall'), 40)
+year.labs <- paste0(year.labs, " ", seas.labs)
+
+# Make settings
+settings <- make_settings(
+  n_x = 200,
+  purpose = "index2",
+  Region = "User",
+  fine_scale = TRUE,
+  bias.correct = FALSE,
+  knot_method = "grid"
+)
+
+#settings$ObsModel[1] <- 14
+
 fit = fit_model( 
+
   # Call settings
     settings = settings, 
     
   # Call survey data info
     Lat_i = survs[,'Lat'], 
     Lon_i = survs[,'Lon'], 
-    t_i = survs[,'Year'], 
-    b_i = survs[,'Response_variable'], 
-    a_i = survs[,'swept'], 
+    t_i = survs[,'Year'],
+    b_i = survs[,'Response_variable'],
+    a_i = survs[,'swept'],
     v_i = survs[,'vessel'],
     c_iz = survs[,'Age'],
-    e_i = as.numeric(survs[,'Data_type'])-1,
+    #e_i = as.numeric(survs[,'Data_type']-1),
   
   # Call catchability info
-    Q1_formula = ~ factor(Data_type),
-    catchability_data = survs[,'Data_type',drop=FALSE],
+   # Q1_formula = Q1_formula,
+   # catchability_data  = catchability_data,
   
   # Call covariate info
-    X1_formula = ~ gravel_P + cobble_P + mud_P + rock_P + sand_P + 
-                   BATHY.DEPTH + 
-                   oisst +
-                   rugos,
+    X1_formula = ~ gravel_P + cobble_P + mud_P + sand_P + # rock_P +
+                   BATHY.DEPTH + oisst + rugos,
     covariate_data = scaled.covars,
   
   # Call spatial 
     input_grid=user_region,
   
+  # Set naming conventions
+    category_names = c('Ages [0-2)', 'Ages [2-5)',
+                       'Ages [5+]', 'Unknown Ages'),
+    year_labels = year.labs,
+  
   # Tell model to run
     run_model = TRUE)
+
+  
 beep(8)
 
 #### Plot results ####
 
-save.image('strata_cats_5.RData')
+save.image('strata_cats_7.RData')
 
 plot( fit )
 beep(8)

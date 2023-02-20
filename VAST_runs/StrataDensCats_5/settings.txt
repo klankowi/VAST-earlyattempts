@@ -33,9 +33,7 @@ Eta1 Eta2
    0    0 
 
 $ObsModel
-     [,1] [,2]
-[1,]   14    1
-[2,]    2    1
+[1] 2 1
 
 $vars_to_correct
 [1] "Index_cyl" "Index_ctl"
