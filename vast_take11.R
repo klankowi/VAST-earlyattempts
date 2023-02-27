@@ -61,22 +61,11 @@ ex3 <- left_join(ex2, rugos, by="HAUL_ID")
 
 ex4 <- subset(ex3, !is.na(ex3$rugos))
 
-for(i in 1:nrow(ex4)){
-  if(ex4$TIME[i] %% 2 == 0){
-    ex4$add[i] <- 0.5
-  }
-  if(ex4$TIME[i] %% 2 != 0){
-    ex4$add[i] <- 0
-  }
-}
-
-ex4$TIME2 <- ex4$YEAR + ex4$add
-
 
 #### Finalize sampling data inputs ####
 # Save sampling data
 survs <- dplyr::select(ex4,
-                       LON, LAT, YEAR, SEASON, TIME2, SURVEY, RESPONSE, 
+                       LON, LAT, TIME, SURVEY, RESPONSE, 
                        AGEGROUP)
 #survs$COD_N <- as_units(survs$COD_N, 'counts')
 survs$swept <- 1
@@ -101,16 +90,16 @@ survs$AGE <- as.numeric(factor(survs$AGEGROUP, levels=c('Age0-2', 'Age2-5', 'Age
 # Age 2 - 5: 0
 # Age 5+   : 1
 
-survs <- dplyr::select(survs, LON, LAT, TIME2, RESPONSE, AGE, vessel, swept)
+survs <- dplyr::select(survs, LON, LAT, TIME, RESPONSE, AGE, vessel, swept)
 names(survs) <- c('Lon', 'Lat', 'Year', 'Response_variable', 
                   'Age', 'vessel', 'swept')
 survs$Response_variable <- as_units(survs$Response_variable, 'counts')
+table(survs$Year)
 str(survs)
-# Spring ends in 0, Fall ends in 0.5
 
 # Save covariates
 covars <- dplyr::select(ex4,
-                        LON, LAT, TIME2, cobble_P, gravel_P,
+                        LON, LAT, TIME, cobble_P, gravel_P,
                         mud_P, rock_P, sand_P, rugos, BATHY.DEPTH, oisst)
 covars$BATHY.DEPTH[covars$BATHY.DEPTH < 0] <- 
   covars$BATHY.DEPTH[covars$BATHY.DEPTH < 0] * -1
@@ -225,6 +214,8 @@ fit = fit_model(
   
   # Call covariate info
     X1_formula = ~ gravel_P + cobble_P + mud_P + sand_P + # rock_P +
+                   BATHY.DEPTH + oisst + rugos,
+    X2_formula = ~ gravel_P + cobble_P + mud_P + sand_P + # rock_P +
                    BATHY.DEPTH + oisst + rugos,
     covariate_data = scaled.covars,
   
