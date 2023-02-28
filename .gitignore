@@ -1,5 +1,6 @@
 *.Rproj
 .Rproj.user
+*.Rhistory
 Rugosity_15as_F.dbf
 Rugosity_15as_F.shp
 gravel_1stattempt.RData
@@ -10,14 +11,14 @@ strata_covs_spring.RData
 strata_cats_1.RData
 strata_cats_2.RData
 strata_cats_3.RData
-.Rhistory
 strata_cats_5.RData
 strata_cats_6.RData
-
 VAST_runs/StrataDensCats_7/parameter_estimates.RData
 VAST_runs/StrataDensCats_7/strata_cats_7.RData
-.Rhistory
 VAST_runs/StrataDensCats_7_BathyOnly/parameter_estimates.RData
 VAST_runs/StrataDensCats_7_BathyOnly/strata_cats_7_bathyonly.RData
 VAST_runs/StrataDensCats_7_noBLLS/parameter_estimates.RData
 VAST_runs/StrataDensCats_7_noBLLS/strata_cats_7_noBLLS.RData
+data/RData_Storage/substrate_specific_indices.RData
+VAST_runs/StrataDensCats_7_noSentinel/parameter_estimates.RData
+VAST_runs/StrataDensCats_7_noSentinel/strata_cats_7_noSentinel.RData
