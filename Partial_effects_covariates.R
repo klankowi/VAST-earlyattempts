@@ -5,6 +5,9 @@ library(VAST)
 library(effects)
 library(tidyverse)
 library(here)
+library(splines)
+library(marginaleffects)
+
 
 # Set GGplot auto theme
 theme_set(theme(plot.margin = unit(c(0,0,0,0), "cm"),
@@ -25,14 +28,28 @@ theme_set(theme(plot.margin = unit(c(0,0,0,0), "cm"),
 # VAST Output
 load(here("VAST_runs/StrataDensCats_7/strata_cats_7.RData"))
 
-# Must add data-frames to global environment (hope to fix in future)
-covariate_data_full = fit$effects$covariate_data_full
-catchability_data_full = fit$effects$catchability_data_full
-
 # Plot 1st linear predictor, but could use `transformation` to apply link function
-pred = Effect.fit_model( mod=fit,
-                         focal.predictors = c("gravel_P", 'cobble_P', 'mud_P', 'sand_P', 'BATHY.DEPTH', 'oisst', 'rugos'),
-                         which_formula = "X1",
-                         xlevels = 100,
-                         transformation = list(link=identity, inverse=identity) )
-plot(pred)
+quant = function(x) seq(min(x),max(x),length=21)
+newdata = datagrid( newdata=data.frame(gravel_P    = fit$covariate_data[,'gravel_P',drop=FALSE],
+                                       cobble_P    = fit$covariate_data[,'cobble_P', drop=FALSE],
+                                       mud_P       = fit$covariate_data[,'mud_P', drop=FALSE],
+                                       sand_P      = fit$covariate_data[,'sand_P',drop=FALSE],
+                                       BATHY.DEPTH = fit$covariate_data[,'BATHY.DEPTH', drop=FALSE],
+                                       oisst       = fit$covariate_data[,'oisst', drop=FALSE],
+                                       rugos       = fit$covariate_data[,'rugos', drop=FALSE]),
+                    gravel_P=quant,
+                    cobble_P = quant,
+                    mud_P = quant,
+                    sand_P = quant,
+                    BATHY.DEPTH = quant,
+                    oisst = quant,
+                    rugos = quant)
+pred = predictions( fit, newdata=newdata, covariate="X1" )
+
+library(ggplot2)
+library(gridExtra)
+ggplot( pred, aes(CPE, predicted)) +
+  geom_line( aes(y=predicted), color="blue", size=1 ) +
+  geom_ribbon( aes( x=CPE, ymin=conf.low, ymax=conf.high), fill=rgb(0,0,1,0.2) ) +
+  facet_wrap(vars(category), scales="free", ncol=2) +
+  labs(y="Predicted response")
