@@ -1,6 +1,8 @@
 *.Rproj
 .Rproj.user
 *.Rhistory
+.Rhistory
+*Rhistory
 Rugosity_15as_F.dbf
 Rugosity_15as_F.shp
 gravel_1stattempt.RData
@@ -22,3 +24,11 @@ VAST_runs/StrataDensCats_7_noBLLS/strata_cats_7_noBLLS.RData
 data/RData_Storage/substrate_specific_indices.RData
 VAST_runs/StrataDensCats_7_noSentinel/parameter_estimates.RData
 VAST_runs/StrataDensCats_7_noSentinel/strata_cats_7_noSentinel.RData
+VAST_runs/effort_adjustment/effort_adjustment.RData
+VAST_runs/effort_adjustment/parameter_estimates.RData
+VAST_runs/refine_effort/refine_effort.RData
+VAST_runs/refine_effort/parameter_estimates.RData
+VAST_runs/StrataDensCats_7_alltrawl/parameter_estimates.RData
+VAST_runs/StrataDensCats_7_alltrawl/strata_cats_7_alltrawl.RData
+.Rhistory
+.Rhistory
