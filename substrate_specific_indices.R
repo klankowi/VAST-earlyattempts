@@ -9,10 +9,9 @@ library(dplyr)
 library(tidyr)
 library(here)
 library(sf)
-library(ggpattern)
 
 # Load data
-load(here("VAST_runs/StrataDensCats_7/strata_cats_7.Rdata"))
+load(here("VAST_runs/effort_adjustment/effort_adjustment.Rdata"))
 
 # Load sediment grids
 load(here('data/RData_Storage/sediment_grids.RData'))
@@ -96,7 +95,7 @@ D$logD <- log(D$D)
 
 #Rebind to list
 D.list <- split(D, f=D$Cat)
-names(D.list) <- c("Ages 0-2", "Ages 2-5", "Ages 5+", "Unknown ages")
+names(D.list) <- c("Small", "Medium", "Large", "Unknown sizes")
 
 # Set CRS 
 projargs <- fit$extrapolation_list$projargs
@@ -125,10 +124,10 @@ round((st_area(mix.agg) / st_area(wholearea) * 100), 1)
 round((st_area(soft.agg) / st_area(wholearea) * 100), 1)
 
 fishsum.df <- data.frame(
-  Age02 = rep(NA, length(year.labs)),
-  Age25 = rep(NA, length(year.labs)),
-  Age5p = rep(NA, length(year.labs)),
-  UnkAg = rep(NA, length(year.labs))
+  Small = rep(NA, length(year.labs)),
+  Medium = rep(NA, length(year.labs)),
+  Large = rep(NA, length(year.labs)),
+  Unkknown = rep(NA, length(year.labs))
 )
 row.names(fishsum.df) <- year.labs
 
@@ -248,22 +247,22 @@ fishsum.list[["Total"]]$Effort <- areatot
 fishsum.all <- do.call(rbind, fishsum.list)
 fishsum.all$Year <- rep(year.labs, 4)
 fishsum.all$Time <- as.numeric(as.factor(fishsum.all$Year))
-fishsum.all$Age02.eff <- fishsum.all$Age02 / fishsum.all$Effort
-fishsum.all$Age25.eff <- fishsum.all$Age25 / fishsum.all$Effort
-fishsum.all$Age5p.eff <- fishsum.all$Age5p / fishsum.all$Effort
+fishsum.all$Small.eff <- fishsum.all$Small / fishsum.all$Effort
+fishsum.all$Medium.eff <- fishsum.all$Medium / fishsum.all$Effort
+fishsum.all$Large.eff <- fishsum.all$Large / fishsum.all$Effort
 
 fishsum <- subset(fishsum.all, !is.na(Sub))
 row.names(fishsum) <- NULL
 
-newfish <- rbind(data.frame( Abund = fishsum$Age02.eff,
+newfish <- rbind(data.frame( Abund = fishsum$Small.eff,
                              Year = fishsum$Year,
                              Group = rep('Under 40cm', nrow(fishsum)),
                              Sub = fishsum$Sub),
-                 data.frame( Abund = fishsum$Age25.eff,
+                 data.frame( Abund = fishsum$Medium.eff,
                              Year = fishsum$Year,
                              Group = rep('40-70 cm', nrow(fishsum)),
                              Sub = fishsum$Sub),
-                 data.frame( Abund = fishsum$Age5p.eff,
+                 data.frame( Abund = fishsum$Large.eff,
                              Year = fishsum$Year,
                              Group = rep('Over 70 cm', nrow(fishsum)),
                              Sub = fishsum$Sub))
