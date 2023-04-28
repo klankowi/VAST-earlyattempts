@@ -5,11 +5,27 @@ library(here)
 library(sf)
 library(raster)
 
+# Set GGplot auto theme
+theme_set(theme(plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"),
+                panel.grid.major = element_line(color='lightgray'),
+                panel.grid.minor = element_blank(),
+                panel.background = element_blank(),
+                panel.border = element_rect(color='black', size=1, fill=NA),
+                legend.title = element_text(size=12),
+                legend.text = element_text(size=10),
+                legend.background = element_blank(),
+                axis.text.x=element_text(size=12),
+                axis.text.y=element_text(size=12),
+                axis.title.x=element_text(size=14),
+                axis.title.y=element_text(size=14, angle=90, vjust=2),
+                plot.title=element_text(size=16, hjust = 0, vjust = 1.2),
+                plot.caption=element_text(hjust=0, face='italic', size=12)))
+
 # Load sediments
 load(here('data/RData_Storage/sediment_grids.RData'))
 rm(c, cent.vals, closed.areas, grid_noNA, hard, hospital_names,
    in.hard, in.soft, in.mix, mix, soft, temp, substrates, wss,
-   hospital_labeller, i, surveys, coast)
+   hospital_labeller, i, surveys)
 
 # Reshape grid
 gridold <- grid
@@ -17,6 +33,7 @@ grid <- dplyr::select(grid, cobble, gravel, mud, sand, rock,
                       cluster, Cell, outcome, geometry)
 grid <- st_transform(grid, crs="EPSG:4326")
 grid <- rbind(grid, grid, grid, grid, grid)
+
 grid$value[1:1980] <- grid$cobble[1:1980]
 grid$sed.ty[1:1980] <- 'cobble'
 
@@ -63,13 +80,17 @@ sed <- ggplot() +
                        direction = 1,
                        begin=0.2, end=1) +
   geom_sf(data=coast) +
-  geom_sf(data=blls, cex=0.5) +
-  coord_sf(xlim=c(-71, -67.5),
-           ylim=c(42, 43.5)) +
+  #geom_sf(data=blls, cex=0.5) +
+  coord_sf(xlim=c(-77, -65),
+           ylim=c(36, 46)) +
+  theme(axis.text.x=element_text(size=9),
+        axis.text.y=element_text(size=9)) +
   facet_wrap(vars(sed.ty))
+sed$labels$fill <- 'Probability'
+plot(sed)
 ggsave(sed,
        device='png',
-       filename='BLLS_sediment.png')
+       filename='Whole_sediment.png')
 
 sedclus <- ggplot() +
   geom_sf(data=grid, col=NA, aes(fill=as.factor(cluster))) +
@@ -78,7 +99,7 @@ sedclus <- ggplot() +
                        direction = 1,
                        begin=0.2, end=1) +
   geom_sf(data=coast) +
-  geom_sf(data=blls, cex=0.5) +
+  #geom_sf(data=blls, cex=0.5) +
   coord_sf(xlim=c(-71, -67.5),
            ylim=c(42, 43.5))
 
@@ -100,19 +121,21 @@ rug <- ggplot() +
   geom_sf(data=rugos, col=NA, 
           aes(fill=as.factor(COND))) +
   geom_sf(data=coast) +
-  geom_sf(data=blls, cex=0.5) +
-  coord_sf(xlim=c(-71, -67.5),
-           ylim=c(42, 43.5))
+  #geom_sf(data=blls, cex=0.5) +
+  coord_sf(xlim=c(-77, -65),
+           ylim=c(36, 46)) +
+  theme(axis.text.x=element_text(size=9),
+        axis.text.y=element_text(size=9))
 ggsave(rug,
        device='png',
-       filename='BLLS_rugosity.png')
+       filename='Whole_rugosity.png')
 
 # Plot against depth
 # If you're interested in adding a bathymetry layer
 library(marmap)
 library(raster)
 # Pull NOAA bathymetry data
-Bathy <- getNOAA.bathy(lon1 = -78, lon2 = -65,
+Bathy <- getNOAA.bathy(lon1 = -78, lon2 = -63,
                        lat1 = 35, lat2 = 47, 
                        resolution = 1)
 # Ignore any error messages, it still produces what we want.
@@ -149,13 +172,14 @@ dep <- ggplot() +
                       breaks = dbreaks) + 
   scale_fill_manual(values =  dcol) +
   geom_sf(data=coast) +
-  geom_sf(data=blls, cex=0.5) +
-  coord_sf(xlim=c(-71, -67.5),
-           ylim=c(42, 43.5)) +
-  theme(legend.position = 'n')
+  #geom_sf(data=blls, cex=0.5) +
+  coord_sf(xlim=c(-77, -65),
+           ylim=c(36, 46)) +
+  theme(legend.position = 'n') +
+  xlab(" ") + ylab(" ")
 ggsave(dep,
        device='png',
-       filename='BLLS_rugosity.png')
+       filename='Whole_depth.png')
 
 head(blls)
 depbreaks <- c(seq(0,100,5),
