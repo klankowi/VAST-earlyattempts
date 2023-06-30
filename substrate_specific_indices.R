@@ -10,14 +10,6 @@ library(tidyr)
 library(here)
 library(sf)
 
-# Load data
-load(here("VAST_runs/effort_adjustment/effort_adjustment.Rdata"))
-
-# Load sediment grids
-load(here('data/RData_Storage/sediment_grids.RData'))
-sedgrid <- grid
-rm(grid)
-
 # Set GGplot auto theme
 theme_set(theme(plot.margin = unit(c(0,0,0,0), "cm"),
                 panel.grid.major = element_line(color='lightgray'),
@@ -35,11 +27,25 @@ theme_set(theme(plot.margin = unit(c(0,0,0,0), "cm"),
                 plot.caption=element_text(hjust=0, face='italic', size=12),
                 strip.text = element_text(size=10)))
 
+# Load data
+load(here("VAST_runs/refine_effort/refine_effort.RData"))
+rm(list=setdiff(ls(), "fit"))
+
+# Load sediment grids
+load(here('Data/Density_Covariates/Sediment/sediment_grids.RData'))
+sedgrid <- grid
+sedgrid <- st_transform(sedgrid, "EPSG:4326")
+hard <- st_transform(hard, "EPSG:4326")
+mix  <- st_transform(mix , "EPSG:4326")
+soft <- st_transform(soft, "EPSG:4326")
+  
+rm(grid)
+
 # Pull vector of years
-years <- year.labs
+years <- fit$year_labels
 
 # Remake map list locally for recreating plots
-mdl <- make_map_info(Region = settings$Region,
+mdl <- make_map_info(Region = fit$extrapolation_list$Area_km2_x,
                      spatial_list = fit$spatial_list,
                      Extrapolation_List = fit$extrapolation_list)
 
@@ -102,15 +108,19 @@ projargs <- fit$extrapolation_list$projargs
 CRS_orig = sp::CRS("+proj=longlat")
 CRS_proj = sp::CRS(projargs)
 
-closed.areas <- st_read(here("data/GIS/closed_areas_wgs.shp"))
-
+# Number cells
 sedgrid$Cell <- seq(1:nrow(sedgrid))
 
+# Create polygons for each sediment type
 hard.agg <- st_union(hard)
 mix.agg <- st_union(mix)
 soft.agg <- st_union(soft)
+
+# Create polygon for hard-mix combined
 allbutsoft <- st_union(hard, mix)
 allbutsoft <- st_union(allbutsoft)
+
+# Create polygon for whole area
 wholearea <- rbind(hard, mix, soft)
 wholearea <- st_union(wholearea)
 
@@ -119,66 +129,75 @@ areahard <- st_area(hard.agg)
 areasoft <- st_area(soft.agg)
 areamix  <- st_area(mix.agg)
 areatot <- st_area(wholearea)
+
+# Percentage of area that is made up of each substrate type
 round((st_area(hard.agg) / st_area(wholearea) * 100), 1)
 round((st_area(mix.agg) / st_area(wholearea) * 100), 1)
 round((st_area(soft.agg) / st_area(wholearea) * 100), 1)
 
+# Create blank dataframe
 fishsum.df <- data.frame(
-  Small = rep(NA, length(year.labs)),
-  Medium = rep(NA, length(year.labs)),
-  Large = rep(NA, length(year.labs)),
-  Unkknown = rep(NA, length(year.labs))
+  Small = rep(NA, length(years)),
+  Medium = rep(NA, length(years)),
+  Large = rep(NA, length(years)),
+  Unkknown = rep(NA, length(years))
 )
-row.names(fishsum.df) <- year.labs
+row.names(fishsum.df) <- years
 
+# List for each substrate type and overall
 fishsum.list <- list(fishsum.df, fishsum.df, fishsum.df, fishsum.df)
 names(fishsum.list) <- c('Hard', 'Mix', 'Soft', 'Total')
 
 # Outer loop: Categories
-for(i in 1:4){
+for(i in 1:3){
   Cat.sub <- D.list[[i]]
-  
-  # Check for outliers, remove
-  outliers <- boxplot.stats(Cat.sub$logD)$out
-  Cat.sub$D[Cat.sub$logD %in% outliers] <- NA
   
   # Set min-max of Zlim for plotting
   min.D <- floor(round(min(Cat.sub$D, na.rm=T),1))
   max.D <- ceiling(round(max(Cat.sub$D, na.rm=T),1))
   
+  # Split by year
   Year.list <- split(Cat.sub, f=Cat.sub$Year)
   
   # Inner loop: Years
   for(j in 1:length(Year.list)
       #10 # for testing
       ){
+    
+    # Call year
     Year.sub <- Year.list[[j]]
     
+    # Set year
     Year <- Year.sub$Year[1]
     
+    # Create spatial points dataframe of grid cell centers
     loc_g <- cbind(Year.sub$Lon, Year.sub$Lat)
-    
     n_cells <- dim(loc_g)[1]
-    
     Points_orig = sp::SpatialPointsDataFrame(coords = loc_g, 
                                              data = data.frame(y = Year.sub$D), 
                                              proj4string = CRS_orig)
-    
+    # Project to WGS84
     Points_LongLat = sp::spTransform(Points_orig, sp::CRS("+proj=longlat"))
-    
+    # Project to chosen projection
     Points_proj = sp::spTransform(Points_orig, CRS_proj)
-    
+    # Call cell size
     cell.size = mean(diff(Points_proj@bbox[1, ]), 
                      diff(Points_proj@bbox[2,]))/floor(sqrt(n_cells))
+    # Conver to sf object
     Points_sf = sf::st_as_sf(Points_proj)
+    # Make grid from points, cell size from cell.size
     abgrid = sf::st_make_grid(Points_sf, cellsize = cell.size)
+    # Assign cell properties from sf object
     abgrid_i = sf::st_intersects(Points_sf, abgrid)
     abgrid = sf::st_sf(abgrid, y = tapply(Points_sf$y, 
                                       INDEX = factor(as.numeric(abgrid_i),
                                                      levels = 1:length(abgrid)), 
                                       FUN = mean, na.rm = TRUE))
+    # Number cells
     abgrid$Cell <- seq(1:nrow(abgrid))
     
+    sedgrid <- st_transform(sedgrid, st_crs(abgrid))
+    # Calculate total abundance over each substrate type
     hardsum <- sum(abgrid$y[abgrid$Cell %in% unique(sedgrid$Cell[sedgrid$outcome == 'Hard' &
                                                     !is.na(sedgrid$outcome)])],
         na.rm=T)
@@ -195,43 +214,9 @@ for(i in 1:4){
     fishsum.list[["Soft"]][j,i] <- softsum
     fishsum.list[["Total"]][j,i] <- totsum
     
-    # Plot
-    # p <- ggplot(ecodata::coast)+
-    #   geom_sf(data=grid, aes(fill=y, col=y)) +
-    #   geom_sf(data=closed.areas, fill=NA, col='black')+
-    #   geom_sf(data=allbutsoft, col='blue', fill=NA) +
-    #   scale_color_viridis_c(limits=c(0.01, max.D),
-    #                         na.value = 'transparent',
-    #                         option=('rocket'),
-    #                         direction = -1,
-    #                         alpha = 0.8) +
-    # 
-    #   scale_fill_viridis_c(limits=c(0.01, max.D),
-    #                         na.value = 'transparent',
-    #                         option=('rocket'), 
-    #                        direction = -1, 
-    #                        alpha = 0.8) +
-    #   
-    #   geom_sf(fill='gray')+
-    #   coord_sf(xlim=c(-76, -65),
-    #            ylim=c(36,46),
-    #            crs="EPSG:4326")+
-    #   labs(title=paste0(names(D.list)[i], " distribution ", Year.sub$Year[1])) +
-    #   theme(legend.position = c(0.90, 0.20))
-    # p$labels$fill <- "Abund."
-    # p$labels$colour <- "Abund."
-    
-    # # Save
-    # ggsave(p, 
-    #        filename = 
-    #          paste0("C:/Users/klankowicz/Desktop/VAST_examples/Mapping2/abund_closed/",
-    #                 names(D.list)[i], "/",
-    #                 names(D.list)[i], " distribution ", Year, '.png'),
-    #        device="png")
-    
   }
-  
 }
+
 fishsum.list[["Hard"]]$Sub <- "Hard"
 fishsum.list[["Hard"]]$Effort <-  areahard
 
@@ -245,7 +230,7 @@ fishsum.list[["Total"]]$Sub <- NA
 fishsum.list[["Total"]]$Effort <- areatot
 
 fishsum.all <- do.call(rbind, fishsum.list)
-fishsum.all$Year <- rep(year.labs, 4)
+fishsum.all$Year <- rep(years, 4)
 fishsum.all$Time <- as.numeric(as.factor(fishsum.all$Year))
 fishsum.all$Small.eff <- fishsum.all$Small / fishsum.all$Effort
 fishsum.all$Medium.eff <- fishsum.all$Medium / fishsum.all$Effort
@@ -254,15 +239,18 @@ fishsum.all$Large.eff <- fishsum.all$Large / fishsum.all$Effort
 fishsum <- subset(fishsum.all, !is.na(Sub))
 row.names(fishsum) <- NULL
 
-newfish <- rbind(data.frame( Abund = fishsum$Small.eff,
+newfish <- rbind(data.frame( Density = fishsum$Small.eff,
+                             Abund = fishsum$Small,
                              Year = fishsum$Year,
                              Group = rep('Under 40cm', nrow(fishsum)),
                              Sub = fishsum$Sub),
-                 data.frame( Abund = fishsum$Medium.eff,
+                 data.frame( Density = fishsum$Medium.eff,
+                             Abund = fishsum$Medium,
                              Year = fishsum$Year,
                              Group = rep('40-70 cm', nrow(fishsum)),
                              Sub = fishsum$Sub),
-                 data.frame( Abund = fishsum$Large.eff,
+                 data.frame( Density = fishsum$Large.eff,
+                             Abund = fishsum$Large,
                              Year = fishsum$Year,
                              Group = rep('Over 70 cm', nrow(fishsum)),
                              Sub = fishsum$Sub))
@@ -273,39 +261,76 @@ newfish$True_Year <- floor(newfish$True_Year)
 newfish$Season <- rep(c('Spring', 'Fall'), 360)
 
 newfish$Sub <- as.factor(newfish$Sub)
-names(newfish) <- c('Abund', 'OldYear', 'Group', 'Substrate', 'Year', 'Season')
-newfish$Abund <- strip_units(newfish$Abund)
+names(newfish) <- c('Density', 'Abund', 'OldYear', 'Group', 'Substrate', 'Year', 'Season')
+newfish$Density <- strip_units(newfish$Density)
 
 newfish$Group <- factor(newfish$Group, levels=c('Under 40cm',
                                                 '40-70 cm',
                                                 'Over 70 cm'))
 # Spring index
-s <- ggplot() +
+s.dens<- ggplot() +
   geom_line(data=newfish[newfish$Season == "Spring",], 
-             aes(x=Year, y=Abund, col=Substrate)) +
+             aes(x=Year, y=Density, col=Substrate)) +
   facet_wrap(vars(Group)) +
-  xlab('Year') + ylab(bquote('Abundance  '(m^-2))) +
+  xlab('Year') + ylab(bquote('Individuals  ' (m^-2))) +
   theme(plot.margin = margin(t=0.25, b=0.25, l=0.5, r=0.25, 'cm')) +
   ggtitle('Spring index')
-s
+s.dens
 
 # Fall index
-f <- ggplot() +
+f.dens <- ggplot() +
+  geom_line(data=newfish[newfish$Season == "Fall",], 
+            aes(x=Year, y=Density, col=Substrate)) +
+  facet_wrap(vars(Group)) +
+  xlab('Year') + ylab(bquote('Individuals  ' (m^-2))) +
+  theme(plot.margin = margin(t=0.25, b=0.25, l=0.5, r=0.25, 'cm')) +
+  ggtitle('Fall index')
+f.dens
+
+library(ggpubr)
+both.dens <- ggarrange(s.dens, f.dens, nrow=2, common.legend = T,
+                       legend = 'bottom')+ bgcolor('white')
+both.dens
+
+# Save
+ggsave(both.dens, 
+       filename = 
+         paste0(here(),
+                '/Plot_output/seasonal_sediment_density.png'),
+       device="png",
+       width = 11, height = 8.5, units='in'
+)
+
+# Spring index
+s.abund<- ggplot() +
+  geom_line(data=newfish[newfish$Season == "Spring",], 
+            aes(x=Year, y=Abund, col=Substrate)) +
+  facet_wrap(vars(Group)) +
+  xlab('Year') + ylab('Abundance') +
+  theme(plot.margin = margin(t=0.25, b=0.25, l=0.5, r=0.25, 'cm')) +
+  ggtitle('Spring index')
+s.abund
+
+# Fall index
+f.abund <- ggplot() +
   geom_line(data=newfish[newfish$Season == "Fall",], 
             aes(x=Year, y=Abund, col=Substrate)) +
   facet_wrap(vars(Group)) +
-  xlab('Year') + ylab(bquote('Abundance  '(m^-2))) +
+  xlab('Year') + ylab('Abundance') +
   theme(plot.margin = margin(t=0.25, b=0.25, l=0.5, r=0.25, 'cm')) +
   ggtitle('Fall index')
-f
+f.abund
+
+library(ggpubr)
+both.abund<- ggarrange(s.abund, f.abund, nrow=2, common.legend = T,
+                       legend = 'bottom') + bgcolor('white')
+both.abund
 
 # Save
-ggsave(s,
-      filename =
-        paste0("C:/Users/klankowicz/Desktop/spring_index.png"),
-      device="png")
-
-ggsave(f,
-       filename =
-         paste0("C:/Users/klankowicz/Desktop/fall_index.png"),
-       device="png")
+ggsave(both.abund, 
+       filename = 
+         paste0(here(),
+                '/Plot_output/seasonal_sediment_abundance.png'),
+       device="png",
+       width = 11, height = 8.5, units='in'
+)
